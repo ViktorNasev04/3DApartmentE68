@@ -308,7 +308,7 @@ export function initUI(app){
   }
   function refreshSwatches(){
     delete swCache.tile;
-    const map = { 'sw-tile': 'tile', 'sw-stone': 'stone', 'sw-oak': 'oak', 'sw-boucle': 'boucle', 'sw-plank': 'plank' };
+    const map = { 'sw-tile': 'tile', 'sw-stone': 'stone', 'sw-ledge': 'ledge', 'sw-oak': 'oak', 'sw-boucle': 'boucle', 'sw-beige': 'beige' };
     for (const [id, k] of Object.entries(map)){ const n = document.getElementById(id); if (n){ const u = swatchURL(k); if (u) n.style.backgroundImage = `url(${u})`; } }
   }
 

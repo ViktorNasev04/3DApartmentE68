@@ -221,4 +221,73 @@ function loadPhotoFace(url){
   });
 }
 
-export { makeNoise, fbm, rng, clamp, smooth, mk, stoneMaps, woodCanvas, boucleCanvas, rugCanvas, tvCanvas, skyCanvas, blobCanvas, plankFace, stoneFace, wallTileFace, loadPhotoFace };
+// Stacked ledgestone, 0.80 × 0.80 m, seamless both ways: colour, normal and height maps
+function ledgeMaps(){
+  const S = 512, ppc = S/80, R = rng(91), n = makeNoise(57), n2 = makeNoise(59);
+  const Hm = new Float32Array(S*S), T = new Float32Array(S*S*3).fill(-1);
+  const rows = [];
+  for (let y = 0; y < S;){ const h = Math.round((2.5 + R()*4.5)*ppc); rows.push([y, Math.min(S, y + h)]); y += h; }
+  if (rows.length > 1 && rows[rows.length - 1][1] - rows[rows.length - 1][0] < 2*ppc){ rows.pop(); rows[rows.length - 1][1] = S; }
+  for (const [y0, y1] of rows){
+    let x = Math.floor(R()*S), covered = 0;
+    while (covered < S){
+      const L = Math.min(Math.round((12 + R()*36)*ppc), S - covered);
+      const depth = R(), gap = 1 + Math.round(R()*1.5);
+      const b = 0.80 + R()*0.24, warm = (R() - 0.5)*12;
+      const tone = [228*b + warm, 214*b + warm*0.6, 190*b - warm*0.4];
+      for (let yy = y0 + 1; yy < y1 - 1; yy++) for (let k = gap; k < L - gap; k++){
+        const xx = (x + k) % S;
+        const de = Math.min(k - gap, L - gap - 1 - k, yy - y0 - 1, y1 - 2 - yy);
+        const edge = Math.min(1, de/(1.0*ppc));
+        const nz = fbm(n, xx*0.035, yy*0.035, 3);
+        Hm[yy*S + xx] = (0.25 + 0.70*depth)*(0.45 + 0.55*Math.sqrt(edge)) + nz*0.10;
+        const i = (yy*S + xx)*3, sh = 0.84 + 0.16*edge + nz*0.14 + fbm(n2, xx*0.14, yy*0.14, 2)*0.05;
+        T[i] = tone[0]*sh; T[i+1] = tone[1]*sh; T[i+2] = tone[2]*sh;
+      }
+      x = (x + L) % S; covered += L;
+    }
+  }
+  const hc = mk(S,S), cc = mk(S,S), nc = mk(S,S);
+  const hd = hc.getContext('2d').createImageData(S,S), cd = cc.getContext('2d').createImageData(S,S), nd = nc.getContext('2d').createImageData(S,S);
+  const at = (x, y) => Hm[((y + S) % S)*S + ((x + S) % S)];
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++){
+    const i = y*S + x, k = i*4, v = Hm[i];
+    hd.data[k] = hd.data[k+1] = hd.data[k+2] = Math.min(255, v*255); hd.data[k+3] = 255;
+    if (T[i*3] < 0){ cd.data[k] = 74; cd.data[k+1] = 65; cd.data[k+2] = 54; }
+    else { cd.data[k] = T[i*3]; cd.data[k+1] = T[i*3+1]; cd.data[k+2] = T[i*3+2]; }
+    cd.data[k+3] = 255;
+    const dx = (at(x+1, y) - at(x-1, y))*6, dy = (at(x, y-1) - at(x, y+1))*6, len = Math.hypot(dx, dy, 1);
+    nd.data[k] = (-dx/len*0.5 + 0.5)*255; nd.data[k+1] = (-dy/len*0.5 + 0.5)*255; nd.data[k+2] = (1/len*0.5 + 0.5)*255; nd.data[k+3] = 255;
+  }
+  hc.getContext('2d').putImageData(hd,0,0); cc.getContext('2d').putImageData(cd,0,0); nc.getContext('2d').putImageData(nd,0,0);
+  return { height: hc, color: cc, normal: nc };
+}
+// Warm travertine-look porcelain, square
+function travertineFace(seed, tone, size = 384){
+  const c = mk(size,size), ctx = c.getContext('2d'), img = ctx.createImageData(size,size), d = img.data;
+  const n = makeNoise(seed), n2 = makeNoise(seed + 5);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++){
+    const band = fbm(n, x*0.003, y*0.02, 3), cloud = fbm(n2, x*0.01, y*0.01, 2);
+    const pore = n2(x*0.22, y*0.7) > 0.6 ? 0.88 : 1;
+    const s = (1 + band*0.07 + cloud*0.05)*pore, grain = (Math.random() - 0.5)*5, k = (y*size + x)*4;
+    d[k] = tone[0]*s + grain; d[k+1] = tone[1]*s + grain; d[k+2] = tone[2]*s + grain; d[k+3] = 255;
+  }
+  ctx.putImageData(img,0,0);
+  return c;
+}
+// Abstract canvas for the picture above the sideboard: beige, an olive field and a charcoal band
+function artCanvas(){
+  const w = 600, h = 360, c = mk(w,h), ctx = c.getContext('2d'), img = ctx.createImageData(w,h), d = img.data, n = makeNoise(83);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++){
+    const t = fbm(n, x*0.02, y*0.02, 4), k = (y*w + x)*4;
+    let r = 214 + t*22, g = 205 + t*20, b = 186 + t*18;
+    if (x > 70 && x < 330 && y > 205 && y < 300){ r = 104 + t*18; g = 110 + t*18; b = 84 + t*14; }
+    if (x > 330 && x < 520 && y > 232 && y < 300){ r = 52 + t*12; g = 50 + t*12; b = 46 + t*10; }
+    if (Math.abs(fbm(n, x*0.006 + 3, y*0.03, 3)) < 0.02 && y < 200) { r -= 30; g -= 30; b -= 28; }
+    d[k] = r; d[k+1] = g; d[k+2] = b; d[k+3] = 255;
+  }
+  ctx.putImageData(img,0,0);
+  return c;
+}
+
+export { makeNoise, fbm, rng, clamp, smooth, mk, stoneMaps, ledgeMaps, woodCanvas, boucleCanvas, rugCanvas, tvCanvas, skyCanvas, blobCanvas, plankFace, stoneFace, travertineFace, wallTileFace, artCanvas, loadPhotoFace };

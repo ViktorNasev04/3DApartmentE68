@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { TYPES, buildItem, disposeItem, shapesOf, withDefaults } from './catalog.js';
 import { WALL_RECTS, roomAt, ROOMS } from './plan.js';
+import { LAYOUT_REV } from './layouts.js';
 
 const SNAP = 0.06;                      // snap to a wall face closer than this (m)
 const COL_SEL = 0xe8a33d, COL_BAD = 0xd9534f, COL_DIM = 0x2d6cdf;
@@ -63,7 +64,7 @@ export class Editor extends EventTarget {
   /* ---------- state ---------- */
   item(id){ return this.items.find(i => i.id === id) || null; }
   serialize(){
-    return { v: 1, floors: { ...this.floors }, bond: this.bond, dir: this.dir,
+    return { v: 1, rev: LAYOUT_REV, floors: { ...this.floors }, bond: this.bond, dir: this.dir,
       items: this.items.map(i => { const o = { id: i.id, type: i.type, x: r2(i.x), z: r2(i.z), rot: Math.round(i.rot * 10) / 10, p: { ...i.p } }; if (i.price != null) o.price = i.price; if (i.note) o.note = i.note; return o; }) };
   }
   applyLayout(layout, { resetHistory = false, keepSelection = false } = {}){

@@ -15,7 +15,7 @@ import { buildShell, CUT } from './shell.js';
 import { setBuildContext } from './catalog.js';
 import { Editor } from './editor.js';
 import { Store } from './store.js';
-import { presetLayout, DEFAULT_PRESET } from './layouts.js';
+import { presetLayout, DEFAULT_PRESET, migrate } from './layouts.js';
 import { initUI } from './ui.js';
 
 const Hm = Hcm / 100;
@@ -275,8 +275,9 @@ function start(){
 
   /* ---------- layout start-up ---------- */
   const saved = store.loadCurrent();
-  let layout = saved ? saved.layout : presetLayout(DEFAULT_PRESET);
-  try { editor.applyLayout(layout, { resetHistory: true }); }
+  const mig = saved ? migrate(saved.layout) : { layout: presetLayout(DEFAULT_PRESET), changed: false };
+  let layout = mig.layout;
+  try { editor.applyLayout(layout, { resetHistory: true }); if (mig.changed) store.saveCurrent(editor.serialize()); }
   catch (e){ console.error(e); editor.applyLayout(presetLayout(DEFAULT_PRESET), { resetHistory: true }); }
   let touched = false;
   editor.addEventListener('change', (e) => {
@@ -303,10 +304,11 @@ function start(){
   store.addEventListener('error', (e) => ui.toast(e.detail));
   store.connect().then(remote => {
     if (remote && !touched && (!saved || remote.savedAt > saved.savedAt + 1000)){
-      try { editor.applyLayout(remote.layout, { resetHistory: true }); ui.toast('Заредих последната подредба от другото ти устройство.'); } catch (_){}
+      try { editor.applyLayout(migrate(remote.layout).layout, { resetHistory: true }); ui.toast('Заредих последната подредба от другото ти устройство.'); } catch (_){}
     }
     ui.renderVariants();
   });
+  if (mig.changed) setTimeout(() => ui.toast('Спалнята и банята са по колажите. Останалото е както го остави.'), 1200);
 
   resize(); goView('over', true);
   requestAnimationFrame(frame);

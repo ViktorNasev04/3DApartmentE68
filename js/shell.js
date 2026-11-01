@@ -253,7 +253,7 @@ export function buildShell(ctx){
     const z0 = 0.65, z1 = 2.45, x = 3.98;
     const sheer = curtain(z1 - z0 + 0.25, 2.52, 10, 0.022, M.sheer);
     sheer.rotation.y = -Math.PI/2; sheer.position.set(x - 0.08, 1.32, (z0 + z1)/2); sheer.renderOrder = 3; curtains.add(sheer);
-    const c = curtain(0.40, 2.55, 3, 0.045, M.linen); c.rotation.y = -Math.PI/2; c.position.set(x - 0.15, 1.31, z1 + 0.06); curtains.add(c);
+    const c = curtain(0.40, 2.55, 3, 0.045, M.linenDark); c.castShadow = true; c.rotation.y = -Math.PI/2; c.position.set(x - 0.15, 1.31, z1 + 0.06); curtains.add(c);
     const rail = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, z1 - z0 + 0.6), M.black);
     rail.position.set(x - 0.12, 2.60, (z0 + z1)/2 + 0.05); curtains.add(rail);
   }
@@ -268,9 +268,16 @@ export function buildShell(ctx){
   /* ---------- ceiling lights ---------- */
   const lamps = [];
   for (const L of CEILING_LIGHTS){
-    const x = L.at[0]/100, z = L.at[1]/100, r = L.small ? 0.13 : 0.24;
-    const disc = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.05, 40), M.flush);
-    disc.position.set(x, H - 0.025, z); group.add(disc);
+    const x = L.at[0]/100, z = L.at[1]/100, r = L.r ?? (L.small ? 0.13 : 0.24);
+    let disc;
+    if (L.spots){
+      disc = new THREE.Group();
+      for (const [sx, sz] of L.spots){ const s = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.012, 24), M.flush); s.position.set(sx/100, H - 0.006, sz/100); disc.add(s); }
+    } else {
+      disc = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.05, 48), M.flush);
+      disc.position.set(x, H - 0.025, z);
+    }
+    group.add(disc);
     const light = L.light ? new THREE.PointLight(0xffdcb5, L.light, 0, 2) : null;
     if (light){ light.position.set(x, H - 0.25, z); light.userData.evening = true; light.userData.base = L.light; group.add(light); }
     lamps.push({ disc, light, room: L.room });

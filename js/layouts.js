@@ -1,6 +1,6 @@
 /* Ready-made arrangements. Positions are metres in plan coordinates (x east, z south), rot in degrees (0 = front faces south). */
 
-const FLOORS = { living: 'tile', antre: 'tile', corridor: 'tile', bath: 'tile', bed: 'tile', loggia: 'outdoor' };
+const FLOORS = { living: 'tile', antre: 'tile', corridor: 'tile', bath: 'beige', bed: 'tile', loggia: 'outdoor' };
 
 function common(){
   return [
@@ -8,19 +8,18 @@ function common(){
     { id: 'k-tall', type: 'kitchenTall', x: -0.24, z: 5.45, rot: 90, p: { W: 0.7, H: 2.2, color: 'greige' } },
     { id: 'k-run', type: 'kitchen', x: -0.24, z: 6.825, rot: 90, p: { L: 2.05, color: 'greige', sink: true, sinkAt: 1.13, hob: false, hobAt: 0.45, uppers: true } },
     { id: 'k-ret', type: 'kitchen', x: 0.51, z: 7.55, rot: 180, p: { L: 0.9, color: 'greige', sink: false, sinkAt: 0.45, hob: true, hobAt: 0.45, uppers: false } },
-    // bedroom
-    { id: 'b-ward', type: 'wardrobe', x: 0.30, z: 0.85, rot: 90, p: { W: 1.7, D: 0.6, H: 2.4, finish: 'oak', doors: 'glass' } },
-    { id: 'b-stone', type: 'stonewall', x: 2.29, z: 0.025, rot: 0, p: { W: 2.6, H: 2.65, led: true } },
-    { id: 'b-bed', type: 'bed', x: 2.29, z: 1.12, rot: 0, p: { W: 1.6, head: 'boucle', linen: 'white' } },
-    { id: 'b-bench', type: 'bench', x: 2.29, z: 2.47, rot: 0, p: { W: 1.6, color: 'cream' } },
-    { id: 'b-ns1', type: 'nightstand', x: 1.155, z: 0.24, rot: 0, p: { finish: 'oak', lamp: true } },
-    { id: 'b-ns2', type: 'nightstand', x: 3.425, z: 0.24, rot: 0, p: { finish: 'oak', lamp: true } },
-    { id: 'b-rug', type: 'rug', x: 2.29, z: 1.95, rot: 0, p: { W: 2.4, D: 1.7, round: false, color: 'sand' } },
-    // bathroom and the wet storage
-    { id: 'w-shower', type: 'shower', x: -1.62, z: 0.40, rot: 0, p: { W: 0.8, D: 0.8, side: 'left' } },
-    { id: 'w-vanity', type: 'vanity', x: -0.60, z: 0.235, rot: 0, p: { W: 0.6, finish: 'oak', mirror: true } },
-    { id: 'w-stone', type: 'stonewall', x: -0.15, z: 0.95, rot: 270, p: { W: 1.9, H: 2.65, led: true } },
-    { id: 'w-wc', type: 'toilet', x: -1.745, z: 1.40, rot: 90, p: {} },
+    // bedroom, after the collage: stacked stone with LED, puffy bed, smoked-glass wardrobe, sideboard with shoe shelves
+    { id: 'b-ward', type: 'wardrobe', x: 0.30, z: 0.85, rot: 90, p: { W: 1.7, D: 0.6, H: 2.6, finish: 'walnut', doors: 'glass' } },
+    { id: 'b-stone', type: 'stonewall', x: 2.29, z: 0.025, rot: 0, p: { kind: 'ledge', W: 3.3, H: 2.65, led: true } },
+    { id: 'b-bed', type: 'bed', x: 2.29, z: 1.28, rot: 0, p: { W: 1.6, head: 'puffy', linen: 'white' } },
+    { id: 'b-shoe', type: 'shoeboard', x: 2.35, z: 3.08, rot: 180, p: { W: 2.0, D: 0.30, finish: 'greige', open: 'left', art: true } },
+    // bathroom, after the collage: walk-in shower with a black-framed side panel, stone slab with LED, stacked stone wall
+    { id: 'w-shower', type: 'shower', x: -1.57, z: 0.50, rot: 0, p: { glass: 'side', W: 0.9, D: 1.0, side: 'right' } },
+    { id: 'w-vanity', type: 'vanity', x: -0.60, z: 0.235, rot: 0, p: { style: 'slab', W: 0.75, finish: 'oak', mirror: true } },
+    { id: 'w-stone', type: 'stonewall', x: -0.15, z: 0.95, rot: 270, p: { kind: 'ledge', W: 1.9, H: 2.65, led: true } },
+    { id: 'w-towel', type: 'towel', x: -0.20, z: 0.62, rot: 270, p: {} },
+    { id: 'w-mat', type: 'rug', x: -0.72, z: 1.18, rot: 0, p: { W: 0.8, D: 0.5, round: false, color: 'olive' } },
+    { id: 'w-wc', type: 'toilet', x: -1.69, z: 1.45, rot: 90, p: { kind: 'floor' } },
     { id: 'w-washer', type: 'washer', x: -1.72, z: 2.32, rot: 90, p: {} },
     { id: 'w-boiler', type: 'boiler', x: -1.79, z: 3.05, rot: 90, p: {} },
     { id: 'w-shelf', type: 'shelf', x: -1.57, z: 3.475, rot: 180, p: { W: 0.85, H: 1.8, finish: 'white' } },
@@ -88,4 +87,16 @@ export const PRESETS = [
 ];
 
 export const DEFAULT_PRESET = 'straight';
-export const presetLayout = id => (PRESETS.find(p => p.id === id) || PRESETS[0]).layout();
+export const presetLayout = id => ({ ...(PRESETS.find(p => p.id === id) || PRESETS[0]).layout(), rev: LAYOUT_REV });
+
+/* rev 2: bedroom and bathroom follow the collages. A layout saved before that keeps everything else,
+   but its bedroom and bathroom pieces are replaced by the new ones and the bathroom floor turns beige. */
+export const LAYOUT_REV = 2;
+const REDONE = /^(b-|w-(shower|vanity|stone|towel|mat|wc)$)/;
+export function migrate(layout){
+  if (!layout || (layout.rev || 1) >= LAYOUT_REV) return { layout, changed: false };
+  const items = (layout.items || []).filter(i => !REDONE.test(i.id)).concat(common().filter(i => REDONE.test(i.id)));
+  const floors = { ...(layout.floors || {}) };
+  if (!floors.bath || floors.bath === 'tile') floors.bath = 'beige';
+  return { layout: { ...layout, items, floors, rev: LAYOUT_REV }, changed: true };
+}

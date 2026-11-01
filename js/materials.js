@@ -1,11 +1,12 @@
 /* Shared materials and the tiling shader used for floors and the bathroom walls */
 import * as THREE from 'three';
-import { stoneMaps, woodCanvas, boucleCanvas, rugCanvas, tvCanvas, skyCanvas, blobCanvas, plankFace, stoneFace, wallTileFace, mk } from './textures.js';
+import { stoneMaps, ledgeMaps, woodCanvas, boucleCanvas, rugCanvas, tvCanvas, skyCanvas, blobCanvas, plankFace, stoneFace, travertineFace, artCanvas } from './textures.js';
 
 /* Floor finishes the rooms can switch between. size = tile [long, short] in metres, off = row offset of the default bond. */
 export const FINISHES = {
   tile:    { name: 'Каньон Гриджо 60×120, гланц', short: 'Каньон Гриджо', size: [1.2, 0.6], grout: 0.0025, glossy: true,  price: { perBox: 36.70, boxM2: 2.16, perM2: 16.99 } },
   oak:     { name: 'Ламинат, светъл дъб', short: 'Ламинат дъб', size: [1.2, 0.2], grout: 0.0012, glossy: false },
+  beige:   { name: 'Бежов камък 60×60, мат', short: 'Бежов камък', size: [0.6, 0.6], grout: 0.002, glossy: false },
   grey:    { name: 'Сив мат 60×60', short: 'Сив мат 60×60', size: [0.6, 0.6], grout: 0.0025, glossy: false },
   outdoor: { name: 'Антрацит 60×60, за навън', short: 'Антрацит', size: [0.6, 0.6], grout: 0.003, glossy: false },
 };
@@ -92,6 +93,13 @@ export function createMaterials(renderer){
   const stoneNormal = new THREE.CanvasTexture(st.normal);
   const stoneHeight = new THREE.CanvasTexture(st.height);
   for (const t of [stoneColor, stoneNormal, stoneHeight]) t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping;
+  const lg = ledgeMaps();
+  const ledgeColor = new THREE.CanvasTexture(lg.color); ledgeColor.colorSpace = THREE.SRGBColorSpace;
+  const ledgeNormal = new THREE.CanvasTexture(lg.normal), ledgeHeight = new THREE.CanvasTexture(lg.height);
+  for (const t of [ledgeColor, ledgeNormal, ledgeHeight]){ t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = maxAniso; }
+  const travC = travertineFace(41, [222, 210, 190], 256);
+  const trav = new THREE.CanvasTexture(travC); trav.colorSpace = THREE.SRGBColorSpace; trav.wrapS = trav.wrapT = THREE.MirroredRepeatWrapping;
+  const art = new THREE.CanvasTexture(artCanvas()); art.colorSpace = THREE.SRGBColorSpace;
   const oakVc = woodCanvas(false), oakHc = woodCanvas(true);
   const oakV = wrap(new THREE.CanvasTexture(oakVc)), oakH = wrap(new THREE.CanvasTexture(oakHc));
   const boucleC = boucleCanvas();
@@ -108,9 +116,10 @@ export function createMaterials(renderer){
   const faces = {
     tile: faceTexture(tileStandIn, maxAniso),
     oak: faceTexture(plankFace(), maxAniso),
+    beige: faceTexture(travertineFace(31, [198, 184, 162]), maxAniso),
     grey: faceTexture(stoneFace(23, [150, 147, 141], 384), maxAniso),
     outdoor: faceTexture(stoneFace(29, [92, 90, 88], 384), maxAniso),
-    wall: faceTexture(wallTileFace(), maxAniso),
+    wall: faceTexture(travertineFace(37, [216, 203, 182]), maxAniso),
   };
 
   const M = {
@@ -123,6 +132,13 @@ export function createMaterials(renderer){
     oakV: new THREE.MeshStandardMaterial({ map:oakV, roughness:0.55 }),
     oakH: new THREE.MeshStandardMaterial({ map:oakH, roughness:0.55 }),
     stone: new THREE.MeshStandardMaterial({ map:stoneColor, normalMap:stoneNormal, normalScale:new THREE.Vector2(1.2,1.2), displacementMap:stoneHeight, displacementScale:0.045, roughness:0.96 }),
+    ledge: new THREE.MeshStandardMaterial({ map:ledgeColor, normalMap:ledgeNormal, normalScale:new THREE.Vector2(1.6,1.6), displacementMap:ledgeHeight, displacementScale:0.022, roughness:0.95 }),
+    slab: new THREE.MeshStandardMaterial({ map:trav, roughness:0.5 }),
+    walnutV: new THREE.MeshStandardMaterial({ map:oakV, color:0x6e4c34, roughness:0.5 }),
+    walnutH: new THREE.MeshStandardMaterial({ map:oakH, color:0x6e4c34, roughness:0.5 }),
+    art: new THREE.MeshStandardMaterial({ map:art, roughness:0.9 }),
+    linenDark: new THREE.MeshStandardMaterial({ color:0x8c7a68, roughness:0.95, side:THREE.DoubleSide }),
+    towel: new THREE.MeshStandardMaterial({ color:0x5f6747, roughness:1 }),
     olive: new THREE.MeshPhysicalMaterial({ color:0x58613f, roughness:0.75, sheen:1, sheenRoughness:0.45, sheenColor:new THREE.Color(0x9da77d) }),
     black: new THREE.MeshStandardMaterial({ color:0x1c1b19, roughness:0.45, metalness:0.4 }),
     blackGloss: new THREE.MeshStandardMaterial({ color:0x0d0d0e, roughness:0.12, metalness:0.2 }),
@@ -164,11 +180,11 @@ export function createMaterials(renderer){
     const m = f.glossy
       ? new THREE.MeshPhysicalMaterial({ map:faces[key], roughness:0.16, clearcoat:0.7, clearcoatRoughness:0.06, transparent:true, opacity:0.82 })
       : new THREE.MeshStandardMaterial({ map:faces[key], roughness: key === 'oak' ? 0.55 : 0.82 });
-    return tiled(m, { size: f.size, grout: f.grout, off: key === 'oak' ? 0.37 : 1/3, groutColor: key === 'oak' ? 0x6f5a43 : key === 'outdoor' ? 0x4c4a47 : 0xb9b1a5, vary: key === 'oak' ? 0.07 : 0.025, ...extra });
+    return tiled(m, { size: f.size, grout: f.grout, off: key === 'oak' ? 0.37 : f.size[0] === f.size[1] ? 0 : 1/3, groutColor: key === 'oak' ? 0x6f5a43 : key === 'outdoor' ? 0x4c4a47 : 0xb9b1a5, vary: key === 'oak' ? 0.07 : 0.025, ...extra });
   };
-  const FLOOR = { tile: floorMat('tile'), oak: floorMat('oak'), grey: floorMat('grey'), outdoor: floorMat('outdoor') };
-  const BATHWALL = tiled(new THREE.MeshPhysicalMaterial({ map:faces.wall, roughness:0.2, clearcoat:0.4, clearcoatRoughness:0.1 }),
-    { size: [1.2, 0.6], grout: 0.002, off: 0, rot: 1, groutColor: 0xd8d2c8, vary: 0.015 });
+  const FLOOR = { tile: floorMat('tile'), oak: floorMat('oak'), beige: floorMat('beige', { groutColor: 0xa99a84 }), grey: floorMat('grey'), outdoor: floorMat('outdoor') };
+  const BATHWALL = tiled(new THREE.MeshStandardMaterial({ map:faces.wall, roughness:0.55 }),
+    { size: [0.6, 0.6], grout: 0.0018, off: 0, rot: 0, groutColor: 0xb8aa94, vary: 0.02 });
 
   /* fabric and finish variants are cached so furniture of the same colour shares one material */
   const cache = new Map();
@@ -200,7 +216,7 @@ export function createMaterials(renderer){
     FLOOR.tile.map = t; FLOOR.tile.needsUpdate = true;
   }
 
-  const swatches = { tile: () => faces.tile.image, stone: st.color, oak: oakVc, boucle: boucleC, plank: faces.oak.image };
+  const swatches = { tile: () => faces.tile.image, stone: st.color, ledge: lg.color, oak: oakVc, boucle: boucleC, plank: faces.oak.image, beige: faces.beige.image };
 
   return { M, FLOOR, BATHWALL, fabric, fabricBack, paint, rug, blob, setTilePhoto, swatches, maxAniso, tvTex, faces };
 }

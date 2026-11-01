@@ -15,7 +15,7 @@ export const CATEGORIES = [
 ];
 
 const FABRICS = [['cream', 0xf0ebe2, 'Букле, кремаво'], ['sand', 0xd8c9b1, 'Бежово'], ['olive', 0x67704b, 'Маслинено'], ['stone', 0xa9a49b, 'Сиво'], ['clay', 0xb98a6a, 'Теракота']];
-const FINISH = [['oak', 0, 'Дъб'], ['white', 0xf1eee8, 'Бяло'], ['greige', 0xcdc3b6, 'Грейж'], ['olive', 0x7a8160, 'Маслинено'], ['black', 0x26241f, 'Черно']];
+const FINISH = [['oak', 0, 'Дъб'], ['walnut', 0x5a3e2b, 'Орех'], ['white', 0xf1eee8, 'Бяло'], ['greige', 0xcdc3b6, 'Грейж'], ['olive', 0x7a8160, 'Маслинено'], ['black', 0x26241f, 'Черно']];
 const KITCHEN = [['greige', 0xcdc3b6, 'Грейж мат'], ['white', 0xf1eee8, 'Бяло мат'], ['oak', 0, 'Дъб'], ['olive', 0x7a8160, 'Маслинено']];
 const LINEN = [['white', 0xf4f1ea, 'Бяло'], ['linen', 0xd9cdb9, 'Лен'], ['olive', 0x7d8562, 'Маслинено'], ['stone', 0xb3aea6, 'Сиво']];
 const RUGS = [['cream', 0xffffff, 'Кремав'], ['sand', 0xe2cfb0, 'Пясък'], ['stone', 0xbdb8b0, 'Сив'], ['olive', 0xa8ad8a, 'Маслинен']];
@@ -57,8 +57,8 @@ function rectLight(parent, w, h, x, y, z, intensity){
   const l = new THREE.RectAreaLight(0xffc98e, intensity, w, h);
   l.position.set(x, y, z); l.rotation.x = -Math.PI/2; l.userData.evening = true; l.userData.base = intensity; parent.add(l); return l;
 }
-const finishMat = (key, list = FINISH) => key === 'oak' ? C.M.oakH : C.paint(pick(list, key)[1], 0.55);
-const finishMatV = (key, list = FINISH) => key === 'oak' ? C.M.oakV : C.paint(pick(list, key)[1], 0.55);
+const finishMat = (key, list = FINISH) => key === 'oak' ? C.M.oakH : key === 'walnut' ? C.M.walnutH : C.paint(pick(list, key)[1], 0.55);
+const finishMatV = (key, list = FINISH) => key === 'oak' ? C.M.oakV : key === 'walnut' ? C.M.walnutV : C.paint(pick(list, key)[1], 0.55);
 
 const VASE_TALL = [[0,0],[0.06,0],[0.075,0.05],[0.07,0.16],[0.045,0.25],[0.03,0.30],[0.035,0.31],[0,0.31]];
 const VASE_ROUND = [[0,0],[0.05,0],[0.09,0.05],[0.095,0.10],[0.07,0.16],[0.035,0.18],[0.04,0.19],[0,0.19]];
@@ -378,7 +378,29 @@ function kitchenTall(p){
   return g;
 }
 
+function bedPuffy(p){
+  const g = new THREE.Group(), M = C.M, W = p.W, L = 2.0, side = 0.15, foot = 0.30, headT = 0.20;
+  const TW = W + 2*side, D = headT + L + foot, zh = -D/2, zm0 = zh + headT, zm1 = zm0 + L, zc = (zm0 + zm1)/2;
+  const fab = C.fabric(0xe9e1d3), bedd = C.paint(pick(LINEN, p.linen)[1], 0.95);
+  const nh = Math.max(7, Math.round(TW/0.22)), ch = TW/nh;
+  for (let i = 0; i < nh; i++) rbox(g, ch + 0.012, 1.12, headT, 0.10, fab, -TW/2 + ch*(i + 0.5), 0.58, zh + headT/2);
+  for (const k of [-1, 1]) rbox(g, side + 0.02, 0.44, L + 0.02, 0.09, fab, k*(W/2 + side/2), 0.22, zc);
+  const nf = Math.max(6, Math.round(TW/0.23)), cf = TW/nf;
+  for (let i = 0; i < nf; i++) rbox(g, cf + 0.012, 0.50, foot + 0.02, 0.14, fab, -TW/2 + cf*(i + 0.5), 0.25, zm1 + foot/2);
+  box(g, W, 0.24, L, fab, 0, 0.12, zc);
+  rbox(g, W - 0.01, 0.22, L - 0.02, 0.06, M.bedding, 0, 0.35, zc);
+  rbox(g, W + 0.05, 0.09, L - 0.38, 0.04, bedd, 0, 0.50, zm0 + 0.38 + (L - 0.38)/2);
+  for (const k of [-1, 1]){
+    const pl = rbox(g, Math.min(0.72, W/2 - 0.04), 0.18, 0.44, 0.08, M.bedding, k*W/4, 0.60, zm0 + 0.24); pl.rotation.x = -0.4;
+    const cu = rbox(g, Math.min(0.52, W/2 - 0.14), 0.30, 0.12, 0.05, M.olive, k*W/4.4, 0.64, zm0 + 0.48); cu.rotation.x = -0.32;
+  }
+  rbox(g, W + 0.08, 0.035, 0.66, 0.015, M.olive, 0, 0.56, zm0 + L*0.58);
+  blob(g, TW + 0.3, D + 0.3, 0, 0, false, 0.75);
+  return g;
+}
+
 function bed(p){
+  if (p.head === 'puffy') return bedPuffy(p);
   const g = new THREE.Group(), M = C.M, W = p.W, L = 2.0, D = L + 0.14;
   const head = p.head === 'oak' ? M.oakV : C.fabric(0xe9e2d6);
   const bedd = C.paint(pick(LINEN, p.linen)[1], 0.95);
@@ -441,6 +463,7 @@ function wardrobe(p){
       const cx = -W/2 + dw*(i + 0.5), fz = D/2 - 0.012;
       for (const sx of [-1, 1]) box(g, 0.025, hh, 0.025, M.black, cx + sx*(dw/2 - 0.0125), y0 + hh/2, fz, false);
       box(g, dw, 0.025, 0.025, M.black, cx, Ht - 0.0125, fz, false); box(g, dw, 0.025, 0.025, M.black, cx, y0 + 0.0125, fz, false);
+      for (const f of [0.34, 0.68]) box(g, dw, 0.018, 0.022, M.black, cx, y0 + hh*f, fz, false);
       const gl = new THREE.Mesh(new THREE.PlaneGeometry(dw - 0.05, hh - 0.05), M.smoke); gl.position.set(cx, y0 + hh/2, fz); gl.renderOrder = 3; g.add(gl);
       box(g, 0.012, 0.5, 0.025, M.black, cx + (i % 2 ? -1 : 1)*(dw/2 - 0.06), 1.05, fz + 0.02, false);
     }
@@ -496,6 +519,22 @@ function shelf(p){
 
 function shower(p){
   const g = new THREE.Group(), M = C.M, W = p.W, D = p.D;
+  if (p.glass === 'side'){
+    const s = p.side === 'left' ? -1 : 1, gx = s*(W/2 - 0.006);
+    box(g, W - 0.24, 0.004, 0.05, M.black, 0, 0.003, -D/2 + 0.09, false);
+    const gl = new THREE.Mesh(new THREE.BoxGeometry(0.008, 2.0, D - 0.02), M.showerGlass); gl.position.set(gx, 1.0, 0); gl.renderOrder = 3; g.add(gl);
+    box(g, 0.022, 0.022, D, M.black, gx, 2.0, 0, false);
+    box(g, 0.022, 0.022, D, M.black, gx, 0.011, 0, false);
+    box(g, 0.026, 2.0, 0.026, M.black, gx, 1.0, D/2 - 0.013, false);
+    box(g, 0.022, 2.0, 0.03, M.black, gx, 1.0, -D/2 + 0.015, false);
+    cyl(g, 0.15, 0.15, 0.012, M.black, -s*0.05, 2.15, -D/2 + 0.32, 32);
+    box(g, 0.02, 0.02, 0.32, M.black, -s*0.05, 2.17, -D/2 + 0.16, false);
+    const bx = -s*(W/2 - 0.16);
+    box(g, 0.022, 1.15, 0.022, M.black, bx, 1.32, -D/2 + 0.035, false);
+    box(g, 0.16, 0.06, 0.06, M.black, bx, 1.0, -D/2 + 0.045, false);
+    const hh = box(g, 0.035, 0.22, 0.035, M.black, bx, 1.55, -D/2 + 0.07, false); hh.rotation.x = 0.25;
+    return g;
+  }
   box(g, W, 0.04, D, M.porcelain, 0, 0.02, 0);
   box(g, 0.5, 0.004, 0.04, M.steel, 0, 0.042, D/2 - 0.12, false);
   const s = p.side === 'left' ? -1 : 1;
@@ -511,8 +550,17 @@ function shower(p){
   return g;
 }
 
-function toilet(){
+function toilet(p){
   const g = new THREE.Group(), M = C.M;
+  if (p.kind === 'floor'){
+    rbox(g, 0.30, 0.30, 0.40, 0.10, M.porcelain, 0, 0.15, 0.03);
+    rbox(g, 0.37, 0.16, 0.56, 0.12, M.porcelain, 0, 0.33, 0.04);
+    rbox(g, 0.38, 0.03, 0.50, 0.014, M.white, 0, 0.425, 0.07);
+    rbox(g, 0.36, 0.38, 0.16, 0.05, M.porcelain, 0, 0.63, -0.25);
+    cyl(g, 0.025, 0.025, 0.012, M.steel, 0, 0.825, -0.25, 20);
+    blob(g, 0.55, 0.8, 0, 0, false, 0.4);
+    return g;
+  }
   rbox(g, 0.36, 0.30, 0.50, 0.13, M.porcelain, 0, 0.27, 0.02);
   rbox(g, 0.37, 0.025, 0.45, 0.012, M.white, 0, 0.43, 0.04);
   box(g, 0.24, 0.16, 0.012, M.black, 0, 1.05, -0.27, false);
@@ -520,17 +568,39 @@ function toilet(){
 }
 
 function vanity(p){
-  const g = new THREE.Group(), M = C.M, W = p.W;
-  box(g, W, 0.40, 0.46, finishMat(p.finish), 0, 0.62, 0);
-  box(g, W - 0.01, 0.004, 0.004, M.blackGloss, 0, 0.62, 0.231, false);
-  rbox(g, W + 0.01, 0.10, 0.47, 0.02, M.porcelain, 0, 0.87, 0.005);
-  const basin = new THREE.Mesh(new THREE.PlaneGeometry(W - 0.16, 0.30), M.white); basin.rotation.x = -Math.PI/2; basin.position.set(0, 0.921, 0.04); g.add(basin);
-  box(g, 0.025, 0.20, 0.025, M.black, 0, 1.02, -0.18, false);
-  box(g, 0.025, 0.025, 0.12, M.black, 0, 1.11, -0.13, false);
+  const g = new THREE.Group(), M = C.M, W = p.W, slab = p.style === 'slab';
+  if (slab){
+    rbox(g, W, 0.20, 0.46, 0.015, M.slab, 0, 0.80, 0);
+    const basin = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(0.3, W - 0.24), 0.30), C.paint(0xcdbfa6, 0.4)); basin.rotation.x = -Math.PI/2; basin.position.set(0, 0.9015, 0.04); g.add(basin);
+    cyl(g, 0.016, 0.019, 0.30, M.black, 0, 1.05, -0.17, 16);
+    box(g, 0.022, 0.022, 0.15, M.black, 0, 1.19, -0.11, false);
+    box(g, 0.012, 0.012, 0.07, M.black, 0.035, 1.12, -0.17, false);
+    cyl(g, 0.032, 0.032, 0.15, M.black, W/2 - 0.2, 0.975, -0.12, 16);
+    lathe(g, VASE_ROUND, M.ceramicCream, W/2 - 0.09, 0.90, -0.11, 0.85);
+    const RR = rng(12), leaves = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 6, 4), M.leaf, 140);
+    const dm = new THREE.Object3D(), ca = new THREE.Color(0x56603f), cb = new THREE.Color(0x7d8a5c), cc = new THREE.Color();
+    for (let i = 0; i < 140; i++){
+      const a = RR()*Math.PI*2, r = 0.02 + RR()*0.13, h = 1.06 + RR()*0.28;
+      dm.position.set(W/2 - 0.09 + Math.cos(a)*r, h, -0.11 + Math.sin(a)*r*0.8);
+      dm.rotation.set(RR()*0.6 - 0.3 + Math.PI/2*0.4, a, RR()*0.8);
+      dm.scale.set(0.006, 0.03, 0.002); dm.updateMatrix(); leaves.setMatrixAt(i, dm.matrix); leaves.setColorAt(i, cc.copy(ca).lerp(cb, RR()));
+    }
+    leaves.castShadow = true; leaves.userData.keep = true; g.add(leaves);
+    led(g, W - 0.06, 0.006, 0.01, 0, 0.697, 0.12);
+    rectLight(g, W - 0.1, 0.12, 0, 0.69, 0.06, 4);
+  } else {
+    box(g, W, 0.40, 0.46, finishMat(p.finish), 0, 0.62, 0);
+    box(g, W - 0.01, 0.004, 0.004, M.blackGloss, 0, 0.62, 0.231, false);
+    rbox(g, W + 0.01, 0.10, 0.47, 0.02, M.porcelain, 0, 0.87, 0.005);
+    const basin = new THREE.Mesh(new THREE.PlaneGeometry(W - 0.16, 0.30), M.white); basin.rotation.x = -Math.PI/2; basin.position.set(0, 0.921, 0.04); g.add(basin);
+    box(g, 0.025, 0.20, 0.025, M.black, 0, 1.02, -0.18, false);
+    box(g, 0.025, 0.025, 0.12, M.black, 0, 1.11, -0.13, false);
+  }
   if (p.mirror){
-    const m = new THREE.Mesh(new THREE.CircleGeometry(Math.min(0.32, W/2 - 0.02), 48), M.mirror); m.position.set(0, 1.58, -0.215); g.add(m);
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(Math.min(0.32, W/2 - 0.02), 0.012, 8, 64), M.black); ring.position.copy(m.position); g.add(ring);
-    const glow = new THREE.Mesh(new THREE.RingGeometry(Math.min(0.32, W/2 - 0.02) + 0.005, Math.min(0.32, W/2 - 0.02) + 0.05, 64), M.led); glow.position.set(0, 1.58, -0.231); g.add(glow);
+    const r = Math.min(0.36, W/2 - 0.01), my = slab ? 1.56 : 1.58;
+    const m = new THREE.Mesh(new THREE.CircleGeometry(r, 56), M.mirror); m.position.set(0, my, -0.215); g.add(m);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.01, 8, 64), M.black); ring.position.copy(m.position); g.add(ring);
+    const glow = new THREE.Mesh(new THREE.RingGeometry(r + 0.004, r + 0.055, 64), M.led); glow.position.set(0, my, -0.231); g.add(glow);
   }
   blob(g, W + 0.2, 0.6, 0, 0, false, 0.35);
   return g;
@@ -586,14 +656,58 @@ function customBox(p){
 }
 
 function stoneWall(p){
-  const g = new THREE.Group(), M = C.M;
-  const geo = new THREE.PlaneGeometry(p.W, p.H, Math.max(8, Math.round(p.W*40)), Math.max(8, Math.round(p.H*40)));
-  const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i)*p.W/1.9, uv.getY(i)*p.H/2.45);
-  const st = new THREE.Mesh(geo, M.stone); st.position.set(0, p.H/2, -0.02); st.receiveShadow = true; g.add(st);
+  const g = new THREE.Group(), M = C.M, ledge = p.kind !== 'relief', dens = 40;
+  const geo = new THREE.PlaneGeometry(p.W, p.H, Math.max(8, Math.round(p.W*dens)), Math.max(8, Math.round(p.H*dens)));
+  const su = ledge ? p.W/0.8 : p.W/1.9, sv = ledge ? p.H/0.8 : p.H/2.45;
+  const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i)*su, uv.getY(i)*sv);
+  const st = new THREE.Mesh(geo, ledge ? M.ledge : M.stone); st.position.set(0, p.H/2, -0.02); st.receiveShadow = true; g.add(st);
   if (p.led){
     led(g, p.W - 0.04, 0.006, 0.01, 0, p.H - 0.01, 0.0);
+    for (const k of [-1, 1]) led(g, 0.008, p.H - 0.04, 0.01, k*(p.W/2 - 0.006), p.H/2, 0.0);
     rectLight(g, p.W - 0.08, 0.10, 0, p.H - 0.03, 0.04, Math.min(16, 6*p.W));
   }
+  return g;
+}
+
+function shoeboard(p){
+  const g = new THREE.Group(), M = C.M, W = p.W, D = p.D, Ht = 0.92, body = finishMatV(p.finish), t = 0.02;
+  const Wo = 0.46, s = p.open === 'right' ? 1 : -1, xo = s*(W/2 - Wo/2), Wc = W - Wo, xc = -s*(W/2 - Wc/2);
+  box(g, Wc - 0.01, 0.06, D - 0.04, M.blackGloss, xc, 0.03, -0.02, false);
+  box(g, Wc, Ht - 0.06, D, body, xc, 0.06 + (Ht - 0.06)/2, 0);
+  const n = Math.max(2, Math.round(Wc/0.42)), dw = Wc/n;
+  for (let i = 1; i < n; i++) box(g, 0.004, Ht - 0.10, 0.004, M.blackGloss, xc - Wc/2 + i*dw, 0.06 + (Ht - 0.06)/2, D/2 + 0.001, false);
+  box(g, Wo, Ht, t, body, xo, Ht/2, -D/2 + t/2);
+  box(g, t, Ht, D, body, s*(W/2 - t/2), Ht/2, 0);
+  box(g, Wo, t, D, body, xo, Ht - t/2, 0);
+  const R = rng(7), tones = [0x2a2622, 0xcbb89c, 0x5b4636, 0xe6dfd2], shelves = [0.04, 0.33, 0.62];
+  for (const y of shelves){
+    box(g, Wo - t, t, D - 0.02, body, xo - s*t/2, y, 0);
+    led(g, Wo - 0.07, 0.005, 0.008, xo - s*t/2, y + 0.27, D/2 - 0.04);
+    for (let k = 0; k < 2; k++){
+      const col = C.paint(tones[Math.floor(R()*tones.length)], 0.6), x0 = xo - s*t/2 - Wo/4 + k*Wo/2;
+      for (const dx of [-0.042, 0.042]) rbox(g, 0.072, 0.08, Math.min(0.25, D - 0.05), 0.03, col, x0 + dx, y + t/2 + 0.04, 0);
+    }
+  }
+  cyl(g, 0.035, 0.04, 0.16, M.black, xc - Wc/2 + 0.18, Ht + 0.08, -0.02, 16);
+  for (let i = 0; i < 5; i++){ const st = cyl(g, 0.0025, 0.0025, 0.26, M.oakV, xc - Wc/2 + 0.18, Ht + 0.29, -0.02, 4); st.rotation.set((i - 2)*0.08, 0, (i%2 ? 1 : -1)*0.12); }
+  box(g, 0.26, 0.05, 0.19, M.book1, xc - Wc/2 + 0.48, Ht + 0.025, 0); box(g, 0.22, 0.03, 0.16, M.book2, xc - Wc/2 + 0.48, Ht + 0.065, 0);
+  lathe(g, BOWL, M.ceramicDark, xc + 0.05, Ht, 0, 1.2);
+  lathe(g, VASE_TALL, M.ceramicDark, xc + Wc/2 - 0.16, Ht, 0, 0.8);
+  if (p.art){
+    const aw = Math.min(1.5, W*0.72), ah = aw*0.6, ay = 1.32 + ah/2, ax = xc*0.25;
+    box(g, aw + 0.06, ah + 0.06, 0.035, M.walnutH, ax, ay, -D/2 + 0.018);
+    box(g, aw + 0.01, ah + 0.01, 0.01, C.paint(0xf1ece2, 0.9), ax, ay, -D/2 + 0.036, false);
+    const cnv = new THREE.Mesh(new THREE.PlaneGeometry(aw - 0.08, ah - 0.08), M.art); cnv.position.set(ax, ay, -D/2 + 0.042); g.add(cnv);
+  }
+  blob(g, W + 0.25, D + 0.25, 0, 0, false, 0.5);
+  return g;
+}
+
+function towel(){
+  const g = new THREE.Group(), M = C.M;
+  box(g, 0.02, 0.02, 0.06, M.black, 0, 1.48, 0, false);
+  rbox(g, 0.32, 0.64, 0.03, 0.012, M.towel, 0, 1.14, 0.015);
+  rbox(g, 0.30, 0.10, 0.045, 0.02, M.towel, 0, 1.44, 0.02);
   return g;
 }
 
@@ -633,7 +747,7 @@ export const TYPES = {
     size: p => [p.D, p.D], round: true },
   side: { name: 'Помощна масичка', cat: 'living', build: sideTable, params: [], size: () => [0.42, 0.42], round: true },
   rug: { name: 'Килим', cat: 'living', build: rug, flat: true,
-    params: [R('W', 'Дължина', 1.2, 3.4, 0.1, 2.4), R('D', 'Ширина', 0.8, 2.6, 0.1, 1.6), B('round', 'Кръгъл', false), CO('color', 'Цвят', RUGS, 'cream')],
+    params: [R('W', 'Дължина', 0.5, 3.4, 0.05, 2.4), R('D', 'Ширина', 0.4, 2.6, 0.05, 1.6), B('round', 'Кръгъл', false), CO('color', 'Цвят', RUGS, 'cream')],
     size: p => p.round ? [Math.min(p.W, p.D), Math.min(p.W, p.D)] : [p.W, p.D] },
   plant: { name: 'Маслиново дърво', cat: 'living', build: plant, params: [R('S', 'Височина', 0.7, 1.3, 0.05, 1.0)], size: () => [0.45, 0.45], round: true },
   lamp: { name: 'Лампион', cat: 'living', build: floorLamp, params: [], size: () => [0.5, 0.5], round: true },
@@ -655,22 +769,26 @@ export const TYPES = {
     params: [CH('W', 'Ширина', [[0.6, '60 см'], [0.7, '70 см']], 0.7), R('H', 'Височина', 2.0, 2.6, 0.05, 2.2), CO('color', 'Фронт', KITCHEN, 'greige')],
     size: p => [p.W, 0.60] },
   bed: { name: 'Легло', cat: 'bedroom', build: bed,
-    params: [CH('W', 'Матрак', [[1.4, '140 × 200'], [1.6, '160 × 200'], [1.8, '180 × 200']], 1.6), CH('head', 'Табла', [['boucle', 'Букле с канали'], ['oak', 'Дъбови летви']], 'boucle'), CO('linen', 'Завивка', LINEN, 'white')],
-    size: p => [p.W + 0.12, 2.14] },
+    params: [CH('W', 'Матрак', [[1.4, '140 × 200'], [1.6, '160 × 200'], [1.8, '180 × 200']], 1.6), CH('head', 'Рамка', [['puffy', 'Обли канали отвсякъде'], ['boucle', 'Табла с канали'], ['oak', 'Дъбови летви']], 'puffy'), CO('linen', 'Завивка', LINEN, 'white')],
+    size: p => p.head === 'puffy' ? [p.W + 0.30, 2.50] : [p.W + 0.12, 2.14] },
   nightstand: { name: 'Нощно шкафче', cat: 'bedroom', build: nightstand, params: [CO('finish', 'Цвят', FINISH, 'oak'), B('lamp', 'Нощна лампа', true)], size: () => [0.45, 0.38] },
   wardrobe: { name: 'Гардероб', cat: 'bedroom', build: wardrobe,
     params: [R('W', 'Ширина', 0.6, 3.6, 0.05, 1.7), R('D', 'Дълбочина', 0.35, 0.7, 0.05, 0.6), R('H', 'Височина', 1.8, 2.65, 0.05, 2.4), CO('finish', 'Цвят', FINISH, 'greige'), CH('doors', 'Врати', [['hinged', 'Отваряеми'], ['sliding', 'Плъзгащи'], ['glass', 'Стъкло с черна рамка']], 'hinged')],
     size: p => [p.W, p.D] },
   bench: { name: 'Пейка, букле', cat: 'bedroom', build: bench, params: [R('W', 'Ширина', 0.9, 2.0, 0.05, 1.6), CO('color', 'Дамаска', FABRICS, 'cream')], size: p => [p.W, 0.44] },
   stonewall: { name: 'Стена с камък', cat: 'other', build: stoneWall, wall: true,
-    params: [R('W', 'Ширина', 0.6, 4.0, 0.05, 2.4), R('H', 'Височина', 1.0, 2.65, 0.05, 2.65), B('led', 'LED отгоре', true)], size: p => [p.W, 0.05], note: 'декоративен камък' },
+    params: [CH('kind', 'Камък', [['ledge', 'Стифиран'], ['relief', 'Релефен (като на секцията)']], 'ledge'), R('W', 'Ширина', 0.6, 4.0, 0.05, 2.4), R('H', 'Височина', 1.0, 2.65, 0.05, 2.65), B('led', 'LED по краищата', true)], size: p => [p.W, 0.05] },
+  shoeboard: { name: 'Скрин с рафтове за обувки', cat: 'bedroom', build: shoeboard,
+    params: [R('W', 'Ширина', 1.2, 2.6, 0.05, 2.0), R('D', 'Дълбочина', 0.25, 0.45, 0.01, 0.32), CO('finish', 'Цвят', FINISH, 'greige'), CH('open', 'Рафтовете', [['left', 'Отляво'], ['right', 'Отдясно']], 'left'), B('art', 'Картина отгоре', true)],
+    size: p => [p.W, p.D] },
   dresser: { name: 'Скрин', cat: 'bedroom', build: dresser, params: [R('W', 'Ширина', 0.8, 1.8, 0.05, 1.2), CO('finish', 'Цвят', FINISH, 'oak')], size: p => [p.W, 0.45] },
   desk: { name: 'Бюро', cat: 'bedroom', build: desk, params: [R('W', 'Ширина', 0.9, 1.8, 0.05, 1.2)], size: p => [p.W, 0.6] },
   shower: { name: 'Душ', cat: 'bath', build: shower,
-    params: [R('W', 'Ширина', 0.7, 1.4, 0.05, 0.8), R('D', 'Дълбочина', 0.7, 1.2, 0.05, 0.8), CH('side', 'Стъклото', [['left', 'Отляво'], ['right', 'Отдясно']], 'left')],
+    params: [CH('glass', 'Вид', [['side', 'Без корито, стъкло отстрани'], ['front', 'С корито, стъкло отпред']], 'side'), R('W', 'Ширина', 0.7, 1.4, 0.05, 0.9), R('D', 'Дълбочина', 0.7, 1.4, 0.05, 1.0), CH('side', 'Стъклото', [['left', 'Отляво'], ['right', 'Отдясно']], 'right')],
     size: p => [p.W, p.D] },
-  toilet: { name: 'Тоалетна, окачена', cat: 'bath', build: toilet, params: [], size: () => [0.38, 0.55] },
-  vanity: { name: 'Мивка с шкаф', cat: 'bath', build: vanity, params: [R('W', 'Ширина', 0.45, 1.2, 0.05, 0.6), CO('finish', 'Шкаф', FINISH, 'oak'), B('mirror', 'Огледало', true)], size: p => [p.W, 0.47] },
+  toilet: { name: 'Тоалетна', cat: 'bath', build: toilet, params: [CH('kind', 'Вид', [['floor', 'Стояща, с казанче'], ['wall', 'Окачена']], 'floor')], size: p => [0.38, p.kind === 'wall' ? 0.55 : 0.66] },
+  vanity: { name: 'Мивка', cat: 'bath', build: vanity, params: [CH('style', 'Вид', [['slab', 'Каменен плот с LED'], ['cabinet', 'Шкаф с мивка']], 'slab'), R('W', 'Ширина', 0.45, 1.2, 0.05, 0.75), { ...CO('finish', 'Шкаф', FINISH, 'oak'), if: p => p.style === 'cabinet' }, B('mirror', 'Кръгло огледало с LED', true)], size: p => [p.W, 0.47] },
+  towel: { name: 'Кърпа на кука', cat: 'bath', build: towel, params: [], size: () => [0.34, 0.06], wall: true },
   washer: { name: 'Пералня', cat: 'bath', build: washer, params: [], size: () => [0.60, 0.60] },
   boiler: { name: 'Бойлер 80 л', cat: 'bath', build: boiler, params: [], size: () => [0.46, 0.46], round: true, wall: true },
   shelf: { name: 'Етажерка', cat: 'bath', build: shelf, params: [R('W', 'Ширина', 0.5, 1.4, 0.05, 0.9), R('H', 'Височина', 0.8, 2.4, 0.05, 1.8), CO('finish', 'Цвят', FINISH, 'white')], size: p => [p.W, 0.35] },

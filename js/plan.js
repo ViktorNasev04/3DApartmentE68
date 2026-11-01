@@ -59,7 +59,7 @@ export const TOTAL_AREA = 61.77;            // with the share of walls, as on th
 /* Ceiling lights (evening mode), [X, Y] */
 export const CEILING_LIGHTS = [
   { room: 'living', at: [288, 470], light: 1.3 }, { room: 'living', at: [120, 690], small: true },
-  { room: 'bed', at: [200, 170], light: 1.1 }, { room: 'bath', at: [-107, 95], small: true, light: 0.6 },
+  { room: 'bed', at: [229, 165], light: 1.1, r: 0.30 }, { room: 'bath', at: [-107, 95], light: 0.6, spots: [[-157, 50], [-62, 52], [-107, 140]] },
   { room: 'corridor', at: [-56, 290], small: true }, { room: 'antre', at: [-92, 445], small: true, light: 0.5 },
   { room: 'loggia', at: [505, 160], small: true },
 ];
