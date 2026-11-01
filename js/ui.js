@@ -1,171 +1,336 @@
-/* ---------- page-only logic (runs even if 3D fails) ---------- */
-(function(){
-  const state = window.__room = window.__room || { layout:'corner', mode:'evening', view:'tv', listeners:[] };
+/* Page UI around the 3D stage: views, light and wall toggles, catalogue, settings of the selected piece,
+   variants, floors and tile count, costs, material swatches. */
+import { CATEGORIES, TYPES, shapesOf, displayName } from './catalog.js';
+import { VIEWS, ROOMS, TOTAL_AREA } from './plan.js';
+import { FINISHES, BONDS } from './materials.js';
+import { PRESETS, presetLayout } from './layouts.js';
 
-  /* depth list */
-  function renderDepth(){
-    const corner = state.layout === 'corner';
-    const rows = corner ? [
-      ['38', 'ТВ секция', 'висящ шкаф и колони'],
-      ['107', 'Проход до дивана', 'удобно се минава, без масичка отпред'],
-      ['100', 'Диван', 'с лице на север'],
-      ['205', 'Свободно зад дивана', 'широк проход към кухнята и масата'],
-      ['Ø120', 'Маса KLIPLEV в ъгъла', 'на 20 см от източната и южната стена, три стола откъм стаята']
-    ] : [
-      ['38', 'ТВ секция', 'висящ шкаф и колони'],
-      ['107', 'Проход до дивана', 'удобно се минава, без масичка отпред'],
-      ['100', 'Диван', 'с лице на север'],
-      ['15', 'Зад дивана до масата', 'масата опира почти в облегалката', true],
-      ['Ø120', 'Маса KLIPLEV', 'три стола: изток, запад и юг'],
-      ['70', 'До южната стена', 'столът на юг влиза на ръба', true]
-    ];
-    document.getElementById('depth').innerHTML = rows.map(r =>
-      `<li class="${r[3] ? 'tight' : ''}"><span class="v">${r[0]}</span><span class="t">${r[1]}<small>${r[2]}</small></span></li>`
-    ).join('');
-    document.getElementById('plan-intro').textContent = corner
-      ? 'Масата е в югоизточния ъгъл, вдясно зад дивана. Така зад дивана остават 2 м свободно място, пред кухнята се работи спокойно и масата е близо до прозореца.'
-      : 'Ако масата е точно зад дивана, секцията, диванът и масата се нареждат на една ос. От север на юг стаята има само 4.50 м, затова сантиметрите стигат на ръба.';
+const $ = (s, r = document) => r.querySelector(s);
+const el = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)){
+    if (v == null || v === false) continue;
+    if (k === 'class') e.className = v;
+    else if (k === 'text') e.textContent = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of kids) if (c != null) e.append(c);
+  return e;
+};
+const cm = v => Math.round(v * 100);
+const eur = v => v.toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+const ICON = {
+  rotl: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h6a6 6 0 1 1-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9.5 3.5 6 7l3.5 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  rotr: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 7h-6a6 6 0 1 0 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M14.5 3.5 18 7l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  undo: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7H15a5 5 0 0 1 0 10H8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M11.5 3.5 8 7l3.5 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  redo: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7H9a5 5 0 0 0 0 10h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12.5 3.5 16 7l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  del: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+};
+
+export function initUI(app){
+  const { editor, store, mats } = app;
+
+  /* ---------- toast ---------- */
+  const toastEl = $('#toast'); let toastT = null;
+  function toast(msg){ toastEl.textContent = msg; toastEl.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('on'), 3200); }
+
+  /* ---------- stage HUD ---------- */
+  const modeBtns = { day: $('#m-day'), evening: $('#m-eve') };
+  for (const [m, b] of Object.entries(modeBtns)) b.addEventListener('click', () => { app.setMode(m); syncHud(); });
+  const wallBtns = { auto: $('#w-auto'), low: $('#w-low'), full: $('#w-full') };
+  for (const [w, b] of Object.entries(wallBtns)) b.addEventListener('click', () => { app.setWalls(w); syncHud(); });
+  const undoB = $('#undo'), redoB = $('#redo');
+  undoB.innerHTML = ICON.undo; redoB.innerHTML = ICON.redo;
+  undoB.addEventListener('click', () => editor.undo());
+  redoB.addEventListener('click', () => editor.redo());
+  function syncHud(){
+    for (const [m, b] of Object.entries(modeBtns)) b.setAttribute('aria-pressed', app.state.mode === m);
+    for (const [w, b] of Object.entries(wallBtns)) b.setAttribute('aria-pressed', app.state.walls === w);
+    undoB.disabled = !editor.past.length; redoB.disabled = !editor.future.length;
   }
 
-  /* plan */
-  function renderPlan(){
-    const corner = state.layout === 'corner';
-    const R = 60, cx = corner ? 440 : 270, cz = corner ? 370 : 320, chairD = 77.5;
-    const angles = corner ? [-75, -135, 165] : [180, 0, 90];
-    const chairs = angles.map(a => {
-      const rad = a*Math.PI/180, x = cx + Math.cos(rad)*chairD, z = cz + Math.sin(rad)*chairD;
-      return `<g transform="translate(${x.toFixed(1)} ${z.toFixed(1)}) rotate(${a - 90})"><rect x="-23" y="-23" width="46" height="46" rx="9" fill="var(--paper)" stroke="var(--muted)" stroke-width="1.6"/><path d="M-21 18 Q0 30 21 18" fill="none" stroke="var(--oak)" stroke-width="3"/></g>`;
-    }).join('');
+  /* selection bar inside the stage */
+  const selbar = $('#selbar'), selName = $('#sel-name');
+  $('#sel-rotl').innerHTML = ICON.rotl; $('#sel-rotr').innerHTML = ICON.rotr; $('#sel-dup').innerHTML = ICON.copy; $('#sel-del').innerHTML = ICON.del;
+  $('#sel-rotl').addEventListener('click', () => editor.selected && editor.rotateBy(editor.selected, -90));
+  $('#sel-rotr').addEventListener('click', () => editor.selected && editor.rotateBy(editor.selected, 90));
+  $('#sel-dup').addEventListener('click', () => editor.selected && editor.duplicate(editor.selected));
+  $('#sel-del').addEventListener('click', () => editor.selected && editor.remove(editor.selected));
+  $('#sel-close').addEventListener('click', () => editor.select(null));
+  $('#add-open').addEventListener('click', () => { setTab('add'); if (window.matchMedia('(max-width: 1099px)').matches) $('#dock').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
 
-    /* tiles 60x120, 1/3 offset */
-    let tiles = '';
-    for (let r = 0; r <= 7; r++) tiles += `<line x1="0" y1="${r*60}" x2="520" y2="${r*60}"/>`;
-    for (let r = 0; r < 8; r++){
-      const off = -((r%3)*40);
-      for (let x = off; x < 520; x += 120) if (x > 0) tiles += `<line x1="${x}" y1="${r*60}" x2="${x}" y2="${Math.min(450,(r+1)*60)}"/>`;
+  /* ---------- views ---------- */
+  const views = $('#views');
+  for (const [k, v] of Object.entries(VIEWS)){
+    views.append(el('button', { type: 'button', 'data-view': k, 'aria-pressed': 'false', text: v.name, onclick: () => { app.goView(k); syncViews(); } }));
+  }
+  function syncViews(){ views.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === app.state.view)); }
+
+  /* ---------- dock: tabs ---------- */
+  const tabs = { item: $('#tab-item'), add: $('#tab-add') }, bodies = { item: $('#dock-item'), add: $('#dock-add') };
+  function setTab(t){
+    for (const k of Object.keys(tabs)){ tabs[k].setAttribute('aria-selected', k === t); bodies[k].hidden = k !== t; }
+  }
+  tabs.item.addEventListener('click', () => setTab('item'));
+  tabs.add.addEventListener('click', () => setTab('add'));
+
+  /* catalogue */
+  const add = bodies.add;
+  for (const c of CATEGORIES){
+    const list = el('div', { class: 'cat-list' });
+    for (const [type, T] of Object.entries(TYPES)){
+      if (T.cat !== c.id) continue;
+      const p = Object.fromEntries(T.params.map(d => [d.key, d.def]));
+      const [w, d] = T.size(p);
+      const price = T.price ? T.price(p) : null;
+      list.append(el('button', { type: 'button', class: 'cat-item', onclick: () => {
+        editor.add(type);
+        setTab('item');
+        if (window.matchMedia('(max-width: 1099px)').matches) $('#stage').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } }, el('b', { text: T.name }), el('span', { class: 'num', text: T.round ? `Ø${cm(w)}` : `${cm(w)} × ${cm(d)} см` }), price != null ? el('span', { class: 'num price', text: eur(price) }) : null));
     }
-
-    const ticks = corner ? [0,38,145,245,450] : [0,38,145,245,260,380,450];
-    const labels = corner ? ['38','107','100','205'] : ['38','107','100','15','120','70'];
-    const tight = corner ? [false,false,false,false] : [false,false,false,true,false,true];
-    let chain = `<line x1="560" y1="0" x2="560" y2="450" stroke="var(--muted)" stroke-width="1.2"/>`;
-    ticks.forEach(t => chain += `<line x1="552" y1="${t}" x2="568" y2="${t}" stroke="var(--muted)" stroke-width="1.2"/>`);
-    labels.forEach((l,i) => {
-      const y = (ticks[i]+ticks[i+1])/2 + 6;
-      const yy = (!corner && i === 3) ? y + 4 : y;
-      chain += `<text class="d" x="${i===3?574:574}" y="${yy}" font-size="22" fill="${tight[i]?'var(--warn)':'var(--ink)'}">${l}</text>`;
-    });
-
-    const svg = `
-<svg viewBox="-70 -78 690 590" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="План на дневната в мащаб">
-  <rect x="0" y="0" width="520" height="450" fill="var(--paper)"/>
-  <g stroke="var(--line)" stroke-width="1">${tiles}</g>
-
-  <!-- kitchen -->
-  <rect x="0" y="175" width="62" height="275" fill="var(--line)"/>
-  <rect x="62" y="388" width="60" height="62" fill="var(--line)"/>
-  <line x1="0" y1="240" x2="62" y2="240" stroke="var(--muted)" stroke-width="1"/>
-  <text x="31" y="330" font-size="19" fill="var(--muted)" text-anchor="middle" transform="rotate(-90 31 330)" letter-spacing="2">КУХНЯ</text>
-
-  <!-- rug -->
-  <rect x="150" y="60" width="240" height="160" fill="none" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="6 6"/>
-
-  <!-- tv wall -->
-  <rect x="130" y="0" width="280" height="38" fill="var(--oak)"/>
-  <rect x="175" y="0" width="190" height="6" fill="var(--paper)"/>
-  <rect x="197.5" y="6" width="145" height="4" fill="var(--ink)"/>
-  <text x="270" y="25" font-size="16" fill="#fff" text-anchor="middle" letter-spacing="1.5">ТВ СЕКЦИЯ 280</text>
-
-  <!-- sofa -->
-  <rect x="140" y="145" width="260" height="100" rx="34" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.8"/>
-  <rect x="170" y="215" width="200" height="22" rx="11" fill="none" stroke="var(--muted)" stroke-width="1"/>
-  <text x="270" y="191" font-size="22" fill="var(--ink)" text-anchor="middle">диван 260</text>
-  <path d="M270 151 l-7 10 h14 z" fill="var(--ink)"/>
-
-  <!-- side table, plant -->
-  <circle cx="425" cy="175" r="20" fill="none" stroke="var(--muted)" stroke-width="1.4"/>
-  <circle cx="82" cy="45" r="24" fill="var(--olive)" fill-opacity=".28" stroke="var(--olive)" stroke-width="1.2"/>
-
-  <!-- dining -->
-  ${chairs}
-  <circle cx="${cx}" cy="${cz}" r="${R}" fill="var(--oak)" fill-opacity=".22" stroke="var(--oak)" stroke-width="2"/>
-  <circle cx="${cx}" cy="${cz}" r="${R*0.3}" fill="none" stroke="var(--oak)" stroke-width="1" stroke-dasharray="3 4"/>
-  <text x="${cx}" y="${cz+6}" font-size="22" fill="var(--ink)" text-anchor="middle" class="d">Ø120</text>
-
-  <!-- walls -->
-  <g fill="var(--ink)">
-    <rect x="-14" y="-14" width="426" height="14"/>
-    <rect x="512" y="-14" width="22" height="14"/>
-    <rect x="-14" y="-14" width="14" height="29"/>
-    <rect x="-14" y="165" width="14" height="285"/>
-    <rect x="520" y="-14" width="14" height="59"/>
-    <rect x="520" y="205" width="14" height="245"/>
-    <rect x="-14" y="450" width="548" height="20"/>
-  </g>
-  <!-- window east -->
-  <g stroke="var(--ink)" stroke-width="1.4"><line x1="522" y1="45" x2="522" y2="205"/><line x1="532" y1="45" x2="532" y2="205"/><line x1="527" y1="45" x2="527" y2="205"/></g>
-  <path d="M514 40 q-5 10 0 20 q5 10 0 20 q-5 10 0 20 q5 10 0 20 q-5 10 0 20 q5 10 0 20 q-5 10 0 20 q5 10 0 20 q-5 10 0 20" fill="none" stroke="var(--muted)" stroke-width="1"/>
-  <!-- loggia door -->
-  <line x1="412" y1="-7" x2="512" y2="-7" stroke="var(--ink)" stroke-width="1.4"/>
-  <path d="M412 0 A100 100 0 0 0 512 100" fill="none" stroke="var(--muted)" stroke-width="1" stroke-dasharray="5 5"/>
-  <line x1="512" y1="0" x2="512" y2="100" stroke="var(--muted)" stroke-width="1.4"/>
-  <text x="462" y="-26" font-size="19" fill="var(--muted)" text-anchor="middle">лоджия</text>
-  <text x="-22" y="96" font-size="19" fill="var(--muted)" text-anchor="end" transform="rotate(-90 -22 96)">антре</text>
-  <text x="498" y="128" font-size="19" fill="var(--muted)" text-anchor="end" transform="rotate(-90 498 128)">прозорец</text>
-
-  <!-- dims -->
-  ${chain}
-  <g stroke="var(--muted)" stroke-width="1.2">
-    <line x1="0" y1="-48" x2="520" y2="-48"/><line x1="0" y1="-56" x2="0" y2="-40"/><line x1="520" y1="-56" x2="520" y2="-40"/>
-    <line x1="62" y1="200" x2="140" y2="200"/><line x1="62" y1="193" x2="62" y2="207"/><line x1="140" y1="193" x2="140" y2="207"/>
-    <line x1="400" y1="232" x2="520" y2="232"/><line x1="400" y1="225" x2="400" y2="239"/><line x1="520" y1="225" x2="520" y2="239"/>
-  </g>
-  <text class="d" x="260" y="-56" font-size="22" fill="var(--ink)" text-anchor="middle">520</text>
-  <text class="d" x="101" y="194" font-size="22" fill="var(--ink)" text-anchor="middle">78</text>
-  <text class="d" x="460" y="226" font-size="22" fill="var(--ink)" text-anchor="middle">120</text>
-
-  <!-- north -->
-  <g transform="translate(-42 -54)">
-    <path d="M0 -14 L7 8 L0 4 L-7 8 Z" fill="var(--ink)"/>
-    <text x="0" y="26" font-size="19" font-weight="700" text-anchor="middle" fill="var(--ink)">С</text>
-  </g>
-</svg>`;
-    document.getElementById('plan').innerHTML = svg;
+    add.append(el('h4', { text: c.name }), list);
   }
 
-  function syncButtons(){
-    document.getElementById('l-corner').setAttribute('aria-pressed', state.layout === 'corner');
-    document.getElementById('l-center').setAttribute('aria-pressed', state.layout === 'center');
-    document.getElementById('m-eve').setAttribute('aria-pressed', state.mode === 'evening');
-    document.getElementById('m-day').setAttribute('aria-pressed', state.mode === 'day');
-    document.querySelectorAll('.views button').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === state.view));
+  /* settings of the selected piece */
+  const itemBody = bodies.item;
+  let raf = 0, pendingParam = null;
+  function liveParam(id, key, val){
+    pendingParam = [id, key, val];
+    if (!raf) raf = requestAnimationFrame(() => { raf = 0; const [a, b, c] = pendingParam; editor.setParam(a, b, c); });
   }
-  state.emit = function(){ syncButtons(); renderDepth(); renderPlan(); state.listeners.forEach(f => { try{ f(state); }catch(e){} }); };
+  function renderItem(){
+    const it = editor.item(editor.selected);
+    itemBody.replaceChildren();
+    if (!it){
+      itemBody.append(el('p', { class: 'muted', text: 'Докосни мебел в модела, за да я избереш. После я влачи с пръст или мишка. От „Добави“ слагаш нова.' }),
+        el('ul', { class: 'tips' },
+          el('li', { text: 'Сините линии показват колко място остава до стените и до другите мебели.' }),
+          el('li', { text: 'Червен контур значи, че мебелта застъпва стена или друга мебел.' }),
+          el('li', { text: 'На компютър: R завърта, стрелките местят с 1 см, Delete маха, Ctrl+Z връща.' })));
+      return;
+    }
+    const T = TYPES[it.type];
+    const sh = shapesOf(it.type, it.p);
+    const w = Math.max(...sh.map(r => r[2])) - Math.min(...sh.map(r => r[0])), d = Math.max(...sh.map(r => r[3])) - Math.min(...sh.map(r => r[1]));
+    itemBody.append(el('div', { class: 'item-head' }, el('h3', { text: displayName(it) }), el('span', { class: 'num', text: T.round ? `Ø${cm(w)} см` : `${cm(w)} × ${cm(d)} см` })));
+    itemBody.append(el('p', { class: 'warn', id: 'item-warn', role: 'status' }));
+    renderWarn();
+    const form = el('div', { class: 'params' });
+    for (const def of T.params){
+      if (def.if && !def.if(it.p)) continue;
+      const id = `p-${def.key}`;
+      const row = el('div', { class: 'param' });
+      if (def.type === 'range'){
+        const isScale = def.key === 'S';
+        const out = el('output', { class: 'num', for: id, text: isScale ? `×${it.p[def.key].toFixed(2)}` : `${cm(it.p[def.key])} см` });
+        const inp = el('input', { type: 'range', id, min: def.min, max: def.max, step: def.step, value: it.p[def.key] });
+        inp.addEventListener('input', () => { const v = +inp.value; out.textContent = isScale ? `×${v.toFixed(2)}` : `${cm(v)} см`; liveParam(it.id, def.key, v); });
+        inp.addEventListener('change', () => { editor.setParam(it.id, def.key, +inp.value); editor.commit(); });
+        row.append(el('label', { for: id }, el('span', { text: def.label }), out), inp);
+      } else if (def.type === 'choice'){
+        const seg = el('div', { class: 'chips', role: 'group', 'aria-label': def.label });
+        for (const [val, label] of def.options){
+          seg.append(el('button', { type: 'button', 'aria-pressed': String(it.p[def.key] === val), text: label, onclick: () => { editor.setParam(it.id, def.key, val); editor.commit(); renderItem(); } }));
+        }
+        row.append(el('span', { class: 'plabel', text: def.label }), seg);
+      } else if (def.type === 'color'){
+        const seg = el('div', { class: 'swatch-row', role: 'group', 'aria-label': def.label });
+        for (const [val, hex, label] of def.options){
+          const btn = el('button', { type: 'button', class: 'sw-btn', title: label, 'aria-label': label, 'aria-pressed': String(it.p[def.key] === val), onclick: () => { editor.setParam(it.id, def.key, val); editor.commit(); renderItem(); } });
+          if (val === 'oak') btn.style.backgroundImage = `url(${swatchURL('oak')})`; else btn.style.background = '#' + hex.toString(16).padStart(6, '0');
+          seg.append(btn);
+        }
+        const cur = def.options.find(o => o[0] === it.p[def.key]);
+        row.append(el('span', { class: 'plabel', text: `${def.label}: ${cur ? cur[2] : ''}` }), seg);
+      } else if (def.type === 'bool'){
+        const inp = el('input', { type: 'checkbox', id, checked: !!it.p[def.key] });
+        inp.addEventListener('change', () => { editor.setParam(it.id, def.key, inp.checked); editor.commit(); renderItem(); });
+        row.classList.add('check'); row.append(inp, el('label', { for: id, text: def.label }));
+      } else if (def.type === 'text'){
+        const inp = el('input', { type: 'text', id, value: it.p[def.key] || '', maxlength: '40' });
+        inp.addEventListener('change', () => { editor.setParam(it.id, def.key, inp.value.trim() || def.def); editor.commit(); renderItem(); renderCosts(); });
+        row.append(el('label', { for: id, text: def.label }), inp);
+      }
+      form.append(row);
+    }
+    // rotation
+    {
+      const out = el('output', { class: 'num', for: 'p-rot', text: `${Math.round(it.rot)}°` });
+      const inp = el('input', { type: 'range', id: 'p-rot', min: 0, max: 355, step: 5, value: Math.round(it.rot / 5) * 5 % 360 });
+      inp.addEventListener('input', () => { out.textContent = `${inp.value}°`; editor.setRot(it.id, +inp.value, false); });
+      inp.addEventListener('change', () => editor.commit());
+      const btns = el('div', { class: 'chips' },
+        ...[[-90, '−90°'], [-15, '−15°'], [15, '+15°'], [90, '+90°']].map(([a, t]) => el('button', { type: 'button', text: t, onclick: () => editor.rotateBy(it.id, a) })));
+      form.append(el('div', { class: 'param' }, el('label', { for: 'p-rot' }, el('span', { text: 'Завъртане' }), out), inp, btns));
+    }
+    // price and note
+    {
+      const def = T.price ? T.price(it.p) : null;
+      const pr = el('input', { type: 'number', id: 'p-price', min: '0', step: '0.01', inputmode: 'decimal', placeholder: def != null ? String(def) : 'няма', value: it.price ?? '' });
+      pr.addEventListener('change', () => { const v = pr.value.trim() === '' ? null : Math.max(0, +pr.value); editor.setMeta(it.id, { price: Number.isFinite(v) ? v : null }); editor.commit(); renderCosts(); });
+      const nt = el('input', { type: 'text', id: 'p-note', maxlength: '60', placeholder: T.shop ? T.shop : 'магазин, модел', value: it.note || '' });
+      nt.addEventListener('change', () => { editor.setMeta(it.id, { note: nt.value.trim() }); editor.commit(); renderCosts(); });
+      form.append(el('div', { class: 'param two' },
+        el('div', {}, el('label', { for: 'p-price', text: 'Цена, €' }), pr),
+        el('div', {}, el('label', { for: 'p-note', text: 'Бележка' }), nt)));
+    }
+    itemBody.append(form, el('div', { class: 'item-actions' },
+      el('button', { type: 'button', class: 'btn ghost', text: 'Копие', onclick: () => editor.duplicate(it.id) }),
+      el('button', { type: 'button', class: 'btn ghost danger', text: 'Махни', onclick: () => editor.remove(it.id) })));
+  }
 
-  document.getElementById('l-corner').addEventListener('click', () => { state.layout = 'corner'; state.layoutChanged = true; state.emit(); });
-  document.getElementById('l-center').addEventListener('click', () => { state.layout = 'center'; state.layoutChanged = true; state.emit(); });
-  document.getElementById('m-eve').addEventListener('click', () => { state.mode = 'evening'; state.emit(); });
-  document.getElementById('m-day').addEventListener('click', () => { state.mode = 'day'; state.emit(); });
-  document.querySelectorAll('.views button').forEach(b => b.addEventListener('click', () => { state.view = b.dataset.view; state.viewChanged = true; state.emit(); }));
+  function renderWarn(){
+    const w = document.getElementById('item-warn'); if (!w) return;
+    const issues = editor.issues || [];
+    const names = issues.map(i => i.kind === 'wall' ? 'стена' : displayName(editor.item(i.id) || { type: 'box', p: {} }));
+    w.textContent = issues.length ? 'Застъпва: ' + [...new Set(names)].join(', ') : '';
+    w.hidden = !issues.length;
+  }
 
-  const copyBtn = document.getElementById('copy');
-  copyBtn.addEventListener('click', () => {
-    const txt = document.getElementById('prompt-text').textContent;
-    const done = () => { copyBtn.textContent = 'Копирано'; setTimeout(() => copyBtn.textContent = 'Копирай текста', 1800); };
-    const fallback = () => {
-      const r = document.createRange(); r.selectNodeContents(document.getElementById('prompt-text'));
-      const s = getSelection(); s.removeAllRanges(); s.addRange(r);
-      copyBtn.textContent = 'Маркирано — копирай';
-      setTimeout(() => copyBtn.textContent = 'Копирай текста', 2400);
-    };
-    try { navigator.clipboard.writeText(txt).then(done, fallback); } catch(e){ fallback(); }
+  /* ---------- variants ---------- */
+  const presetsEl = $('#presets');
+  for (const P of PRESETS){
+    presetsEl.append(el('div', { class: 'preset' }, el('b', { text: P.name }), el('p', { text: P.note }),
+      el('button', { type: 'button', class: 'btn ghost', text: 'Зареди', onclick: () => { editor.applyLayout(presetLayout(P.id)); editor.commit(); toast(`Зареден: ${P.name}. С „Назад“ се връщаш.`); } })));
+  }
+  const savedEl = $('#saved'), noteEl = $('#storage-note');
+  function renderVariants(){
+    savedEl.replaceChildren();
+    const list = store.variants || [];
+    if (!list.length) savedEl.append(el('li', { class: 'muted', text: 'Още няма запазени варианти.' }));
+    for (const v of list){
+      const when = new Date(v.savedAt || Date.now()).toLocaleString('bg-BG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      const n = (v.layout && v.layout.items) ? v.layout.items.length : 0;
+      savedEl.append(el('li', {}, el('div', {}, el('b', { text: v.name }), el('span', { class: 'muted num', text: `${when} · ${n} мебели` })),
+        el('div', { class: 'row-actions' },
+          el('button', { type: 'button', class: 'btn ghost', text: 'Зареди', onclick: () => { editor.applyLayout(v.layout); editor.commit(); toast(`Зареден вариант „${v.name}“.`); } }),
+          el('button', { type: 'button', class: 'btn ghost danger', text: 'Изтрий', 'aria-label': `Изтрий ${v.name}`, onclick: () => store.deleteVariant(v.id) }))));
+    }
+    noteEl.textContent = store.mode === 'shared'
+      ? (store.status === 'slow' ? 'Връзката с базата е бавна. Вариантите може да не са най-новите.' : 'Вариантите се пазят в артефакта: виждаш ги от всяко устройство, а Claude може да ги прочете.')
+      : 'Вариантите се пазят в този браузър. За да ги пренесеш, копирай ги като текст.';
+  }
+  const saveName = $('#save-name');
+  $('#save-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = saveName.value.trim() || `Вариант ${(store.variants || []).length + 1}`;
+    const ok = await store.saveVariant(name, editor.serialize());
+    if (ok){ saveName.value = ''; toast(`Запазих „${name}“.`); }
+  });
+  $('#export-btn').addEventListener('click', async () => {
+    const txt = JSON.stringify(editor.serialize());
+    const ta = $('#io-text'); ta.value = txt;
+    try { await navigator.clipboard.writeText(txt); toast('Копирах подредбата. Можеш да я пратиш в чата.'); }
+    catch (_){ ta.focus(); ta.select(); toast('Текстът е маркиран. Копирай го ръчно.'); }
+  });
+  function importText(txt){
+    try {
+      const data = JSON.parse(txt);
+      const layout = data.layout && data.layout.items ? data.layout : data;
+      if (!Array.isArray(layout.items)) throw new Error('no items');
+      editor.applyLayout(layout); editor.commit(); toast('Подредбата е заредена.');
+    } catch (_){ toast('Текстът не е подредба от този модел. Копирай го целия и опитай пак.'); }
+  }
+  $('#import-btn').addEventListener('click', () => importText($('#io-text').value));
+  $('#import-file').addEventListener('change', async (e) => { const f = e.target.files && e.target.files[0]; if (f) importText(await f.text()); e.target.value = ''; });
+
+  /* ---------- rooms and floors ---------- */
+  const roomsBody = $('#rooms-body'), bondSel = $('#bond'), dirSel = $('#dir');
+  for (const [k, b] of Object.entries(BONDS)) bondSel.append(el('option', { value: k, text: b.name }));
+  bondSel.addEventListener('change', () => editor.setFloors(null, bondSel.value));
+  dirSel.addEventListener('change', () => editor.setFloors(null, null, +dirSel.value));
+  function renderRooms(){
+    roomsBody.replaceChildren();
+    let sum = 0;
+    for (const r of ROOMS){
+      sum += r.area;
+      const sel = el('select', { id: `fl-${r.id}`, 'aria-label': `Под: ${r.name}` });
+      for (const [k, f] of Object.entries(FINISHES)) sel.append(el('option', { value: k, text: f.short, selected: (editor.floors[r.id] || 'tile') === k }));
+      sel.addEventListener('change', () => editor.setFloors({ [r.id]: sel.value }));
+      roomsBody.append(el('tr', {}, el('td', {}, el('b', { text: r.name }), el('small', { text: `ап. ${r.code}` })), el('td', { class: 'r num', text: r.area.toFixed(2) }), el('td', {}, sel)));
+    }
+    $('#rooms-sum').textContent = sum.toFixed(2);
+    $('#rooms-total').textContent = TOTAL_AREA.toFixed(2);
+    bondSel.value = editor.bond; dirSel.value = String(editor.dir);
+  }
+
+  function tileCalc(){
+    const f = FINISHES.tile, rooms = ROOMS.filter(r => (editor.floors[r.id] || 'tile') === 'tile');
+    const area = rooms.reduce((s, r) => s + r.area, 0), withCut = area * 1.10;
+    const boxes = Math.ceil(withCut / f.price.boxM2 - 1e-9);
+    return { rooms, area, withCut, boxes, cost: boxes * f.price.perBox };
+  }
+
+  /* ---------- costs ---------- */
+  const costsBody = $('#costs-body');
+  function renderCosts(){
+    costsBody.replaceChildren();
+    const t = tileCalc();
+    let total = 0;
+    if (t.boxes > 0){
+      total += t.cost;
+      costsBody.append(el('tr', {}, el('td', {}, el('b', { text: 'Гранитогрес Каньон Гриджо 60×120' }),
+        el('small', { text: `${t.boxes} кашона × 36.70 € · ${t.area.toFixed(2)} м² + 10% фира = ${t.withCut.toFixed(1)} м², кашонът е 2.16 м² · ${t.rooms.map(r => r.name.toLowerCase()).join(', ')}` })),
+        el('td', { class: 'r', text: eur(t.cost) })));
+    }
+    const groups = new Map();
+    for (const it of editor.items){
+      const T = TYPES[it.type];
+      const price = it.price != null ? it.price : (T.price ? T.price(it.p) : null);
+      const name = displayName(it);
+      const key = name + '|' + price + '|' + (it.note || '');
+      if (!groups.has(key)) groups.set(key, { name, price, note: it.note || (price != null && it.price == null ? [T.shop, T.priceNote].filter(Boolean).join(' · ') : ''), n: 0 });
+      groups.get(key).n++;
+    }
+    const priced = [...groups.values()].filter(g => g.price != null);
+    const unpriced = [...groups.values()].filter(g => g.price == null);
+    for (const g of priced){
+      total += g.price * g.n;
+      costsBody.append(el('tr', {}, el('td', {}, el('b', { text: g.name }), el('small', { text: `${g.n} × ${eur(g.price)}${g.note ? ' · ' + g.note : ''}` })), el('td', { class: 'r', text: eur(g.price * g.n) })));
+    }
+    if (unpriced.length){
+      costsBody.append(el('tr', { class: 'unpriced' }, el('td', {}, el('b', { text: 'Без цена засега' }),
+        el('small', { text: unpriced.map(g => g.n > 1 ? `${g.name} × ${g.n}` : g.name).join(', ') })), el('td', { class: 'r', text: '—' })));
+    }
+    $('#costs-total').textContent = eur(total);
+  }
+
+  /* ---------- swatches ---------- */
+  const swCache = {};
+  function swatchURL(k){
+    if (!swCache[k]){
+      try { const src = k === 'oak' ? mats.swatches.oak : mats.swatches[k]; swCache[k] = (typeof src === 'function' ? src() : src).toDataURL('image/jpeg', 0.85); } catch (_){ swCache[k] = ''; }
+    }
+    return swCache[k];
+  }
+  function refreshSwatches(){
+    delete swCache.tile;
+    const map = { 'sw-tile': 'tile', 'sw-stone': 'stone', 'sw-oak': 'oak', 'sw-boucle': 'boucle', 'sw-plank': 'plank' };
+    for (const [id, k] of Object.entries(map)){ const n = document.getElementById(id); if (n){ const u = swatchURL(k); if (u) n.style.backgroundImage = `url(${u})`; } }
+  }
+
+  /* ---------- wiring ---------- */
+  function selbarSync(){
+    const it = editor.item(editor.selected);
+    selbar.hidden = !it;
+    if (it) selName.textContent = displayName(it);
+  }
+  editor.addEventListener('select', () => { renderItem(); selbarSync(); if (editor.selected) setTab('item'); });
+  let moveRaf = 0;
+  editor.addEventListener('change', (e) => {
+    const d = e.detail || {};
+    syncHud();
+    if (d.moved || d.params){ if (!moveRaf) moveRaf = requestAnimationFrame(() => { moveRaf = 0; renderWarn(); }); if (d.moved) return; }
+    if (d.layout || d.history){ renderItem(); selbarSync(); }
+    if (d.commit && !d.history && !d.params) { const it = editor.item(editor.selected); if (it && itemBody.querySelector('#p-rot')){ const r = itemBody.querySelector('#p-rot'); r.value = Math.round(it.rot / 5) * 5 % 360; itemBody.querySelector('output[for="p-rot"]').textContent = `${Math.round(it.rot)}°`; } }
+    if (d.floors || d.layout || d.history) renderRooms();
+    renderCosts();
   });
 
-  syncButtons(); renderDepth(); renderPlan();
-  setTimeout(() => {
-    if (window.__ready) return;
-    const v = document.getElementById('veil');
-    v.classList.remove('off');
-    v.innerHTML = '3D изгледът не се зареди<small>Планът отдолу е в мащаб</small>';
-  }, 25000);
-})();
+  syncHud(); syncViews(); setTab('add'); renderItem(); renderVariants(); renderRooms(); renderCosts(); refreshSwatches();
+
+  return { renderVariants, syncViews, refreshSwatches, toast, renderCosts };
+}

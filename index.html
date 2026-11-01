@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Дневна Е63</title>
-<meta name="description" content="3D макет в мащаб на дневната с кухненски бокс — ап. Е63">
+<title>Апартамент Е63</title>
+<meta name="description" content="3D макет в мащаб на апартамент Е63: подреждане на мебели, варианти, подове и сметка">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:wght@400;500;600&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -17,132 +17,174 @@
 </script>
 </head>
 <body>
-
 <div class="wrap">
 
   <header class="title">
-    <div class="caps">Ап. Е63 · дневна с кухненски бокс</div>
-    <h1>Дневна</h1>
+    <div class="caps">Ап. Е63 · двустаен · 61.77 м² по документи</div>
+    <h1>Апартамент</h1>
     <div class="meta">
-      <b>23.48 м²</b>
-      <span>≈ 5.20 × 4.50 м</span>
-      <span>прозорец на изток</span>
-      <span>секцията — на север</span>
+      <b>51.05 м²</b><span>чиста площ</span>
+      <span>дневна 23.48</span><span>спалня 12.79</span><span>лоджия 4.39</span><span>антре 3.72</span><span>баня 3.61</span><span>коридор 3.06</span>
     </div>
-    <div class="motto">Камък, дъб и топла светлина</div>
+    <p class="lede">Целият апартамент в мащаб по архитектурния план. Избери мебел и я премести, смени дивана с ъглов, пробвай друга маса. Всяка промяна се пази и се връща с „Назад“.</p>
   </header>
 
-  <section class="stage-block" aria-label="3D модел на дневната">
-    <div class="stage" id="stage">
-      <canvas id="c" aria-label="3D изглед на дневната — влачи, за да завъртиш"></canvas>
-      <div class="hud">
-        <div class="seg" role="group" aria-label="Светлина">
-          <button type="button" id="m-eve" aria-pressed="true">Вечер</button>
-          <button type="button" id="m-day" aria-pressed="false">Ден</button>
+  <section class="planner" aria-label="3D планер">
+    <div class="stage-col">
+      <div class="stage" id="stage" data-mode="day">
+        <canvas id="c" aria-label="3D модел на апартамента. Влачи, за да завъртиш. Докосни мебел, за да я избереш."></canvas>
+        <div class="labels" id="labels" aria-hidden="true"></div>
+        <div class="hud">
+          <div class="hud-l">
+            <div class="seg" role="group" aria-label="Светлина">
+              <button type="button" id="m-day" aria-pressed="true">Ден</button>
+              <button type="button" id="m-eve" aria-pressed="false">Вечер</button>
+            </div>
+            <div class="seg" role="group" aria-label="Стени">
+              <button type="button" id="w-auto" aria-pressed="true" title="Предните стени се снижават, когато гледаш отвън">Срез</button>
+              <button type="button" id="w-low" aria-pressed="false" title="Всички стени до 95 см">Ниски</button>
+              <button type="button" id="w-full" aria-pressed="false" title="Стени до тавана">Цели</button>
+            </div>
+          </div>
+          <div class="seg icons" role="group" aria-label="История">
+            <button type="button" id="undo" aria-label="Назад" title="Назад (Ctrl+Z)"></button>
+            <button type="button" id="redo" aria-label="Напред" title="Напред (Ctrl+Shift+Z)"></button>
+          </div>
         </div>
-        <div class="seg" role="group" aria-label="Къде е масата">
-          <button type="button" id="l-corner" aria-pressed="true">В ъгъла</button>
-          <button type="button" id="l-center" aria-pressed="false">Зад дивана</button>
+        <div class="selbar" id="selbar" hidden>
+          <span class="selname" id="sel-name"></span>
+          <button type="button" id="sel-rotl" aria-label="Завърти на 90° наляво" title="Завърти наляво"></button>
+          <button type="button" id="sel-rotr" aria-label="Завърти на 90° надясно" title="Завърти надясно"></button>
+          <button type="button" id="sel-dup" aria-label="Копие" title="Копие"></button>
+          <button type="button" id="sel-del" aria-label="Махни" title="Махни"></button>
+          <button type="button" id="sel-close" class="txt" aria-label="Готово">Готово</button>
         </div>
+        <button type="button" class="addbtn" id="add-open">+ Мебел</button>
+        <svg class="compass" viewBox="0 0 44 44" aria-hidden="true">
+          <g id="needle" transform="rotate(0 22 22)">
+            <path d="M22 5 L27 22 L22 19 L17 22 Z" fill="currentColor"/>
+            <text x="22" y="38" text-anchor="middle" font-size="11" font-family="Manrope, sans-serif" font-weight="700" fill="currentColor" transform="rotate(0 22 34)" id="needleS">С</text>
+          </g>
+        </svg>
+        <div class="veil" id="veil">Нареждам апартамента…<small>3D модел в мащаб</small></div>
       </div>
-      <svg class="compass" viewBox="0 0 44 44" aria-hidden="true" id="compass">
-        <g id="needle" transform="rotate(0 22 22)">
-          <path d="M22 5 L27 22 L22 19 L17 22 Z" fill="currentColor"/>
-          <text x="22" y="38" text-anchor="middle" font-size="11" font-family="Manrope, sans-serif" font-weight="700" fill="currentColor" transform="rotate(0 22 34)" id="needleS">С</text>
-        </g>
-      </svg>
-      <div class="veil" id="veil">Подреждам плочките…<small>3D модел в мащаб</small></div>
+      <div class="views" id="views" role="group" aria-label="Изгледи"></div>
+      <p class="hint">Влачи празно място, за да завъртиш. С два пръста приближаваш и местиш. Докосни мебел, за да я избереш, после я влачи.</p>
     </div>
-    <div class="views" role="group" aria-label="Изгледи">
-      <button type="button" data-view="tv" aria-pressed="true">Към секцията</button>
-      <button type="button" data-view="sofa" aria-pressed="false">От дивана</button>
-      <button type="button" data-view="dining" aria-pressed="false">Масата</button>
-      <button type="button" data-view="over" aria-pressed="false">Общ изглед</button>
-      <button type="button" data-view="top" aria-pressed="false">Отгоре</button>
-    </div>
-    <p class="hint">Влачи с пръст, за да завъртиш. С два пръста приближаваш и местиш.</p>
+
+    <aside class="dock" id="dock" aria-label="Мебели">
+      <div class="dock-tabs" role="tablist">
+        <button type="button" role="tab" id="tab-item" aria-selected="false" aria-controls="dock-item">Избрано</button>
+        <button type="button" role="tab" id="tab-add" aria-selected="true" aria-controls="dock-add">Добави</button>
+      </div>
+      <div class="dock-body" id="dock-item" role="tabpanel" aria-labelledby="tab-item" hidden></div>
+      <div class="dock-body" id="dock-add" role="tabpanel" aria-labelledby="tab-add"></div>
+    </aside>
   </section>
 
-  <section class="sheet" aria-labelledby="h-plan">
+  <section class="sheet" aria-labelledby="h-var">
     <div class="sheet-head">
-      <div class="caps">Разпределение</div>
-      <h2 id="h-plan">Секция и диван на една ос, масата в ъгъла</h2>
+      <div class="caps">Варианти</div>
+      <h2 id="h-var">Пробвай подредби и пази хубавите</h2>
+    </div>
+    <div class="presets" id="presets"></div>
+    <div class="two">
+      <div class="saved-col">
+        <h3>Запазени</h3>
+        <ul class="saved" id="saved"></ul>
+        <form class="save-form" id="save-form">
+          <label for="save-name" class="sr">Име на варианта</label>
+          <input type="text" id="save-name" maxlength="60" placeholder="Име, например „Ъглов диван, маса до прозореца“">
+          <button type="submit" class="btn">Запази текущата</button>
+        </form>
+        <p class="note" id="storage-note"></p>
+      </div>
+      <div class="io-col">
+        <h3>Като текст</h3>
+        <p class="muted">Копирай подредбата и ми я прати в чата, или постави текст, който съм ти дал.</p>
+        <label for="io-text" class="sr">Подредба като текст</label>
+        <textarea id="io-text" rows="4" spellcheck="false" placeholder="{&quot;items&quot;: …}"></textarea>
+        <div class="row-actions">
+          <button type="button" class="btn" id="export-btn">Копирай текущата</button>
+          <button type="button" class="btn ghost" id="import-btn">Зареди от текста</button>
+          <label class="btn ghost file">Зареди файл<input type="file" id="import-file" accept=".json,application/json,text/plain"></label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sheet" aria-labelledby="h-rooms">
+    <div class="sheet-head">
+      <div class="caps">Стаи и под</div>
+      <h2 id="h-rooms">Площи от плана, подът по стаи</h2>
     </div>
     <div class="two">
-      <div class="plan-box" id="plan"></div>
-      <div style="display:grid; gap:18px; min-width:0">
-        <p id="plan-intro"></p>
-        <ul class="depth" id="depth"></ul>
-        <p class="note"><b>Диванът — до 2.60 м.</b> Между него и кухнята остават 78 см. По-дълъг диван (3 м като този в магазина) оставя под 60 см и кухнята става тясна.</p>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>Помещение</th><th class="r">м²</th><th>Под</th></tr></thead>
+          <tbody id="rooms-body"></tbody>
+          <tfoot>
+            <tr><td>Чиста площ</td><td class="r num" id="rooms-sum"></td><td></td></tr>
+            <tr><td>С идеалните части и стените</td><td class="r num" id="rooms-total"></td><td></td></tr>
+          </tfoot>
+        </table>
       </div>
-    </div>
-  </section>
-
-  <section class="sheet" aria-labelledby="h-mat">
-    <div class="sheet-head">
-      <div class="caps">Материали</div>
-      <h2 id="h-mat">Същата палитра като спалнята</h2>
-    </div>
-    <div class="swatches" id="swatches">
-      <div class="sw"><div class="chip" id="sw-tile"></div><b>Гранитогрес Каньон Гриджо</b><span>60×120, гланц, QUA · целия под, вкл. кухнята</span></div>
-      <div class="sw"><div class="chip" id="sw-stone"></div><b>Декоративен камък</b><span>топло бяло · панел зад телевизора</span></div>
-      <div class="sw"><div class="chip" id="sw-oak"></div><b>Натурален дъб</b><span>секцията и масата KLIPLEV</span></div>
-      <div class="sw"><div class="chip" id="sw-boucle"></div><b>Букле, кремаво</b><span>диванът · бежово за столовете</span></div>
-      <div class="sw"><div class="chip" style="background:#5d6646"></div><b>Маслинено зелено</b><span>възглавници, маслиново дърво</span></div>
-      <div class="sw"><div class="chip" style="background:#1d1c1a"></div><b>Черно матово</b><span>рамки на вратата и прозореца</span></div>
+      <div class="tile-opts">
+        <div class="sw-big" id="sw-tile" role="img" aria-label="Снимка на плочката Каньон Гриджо"></div>
+        <div class="opts">
+          <label for="dir">Редене на плочите</label>
+          <select id="dir"><option value="0">Дългата страна изток – запад</option><option value="1">Дългата страна север – юг</option></select>
+          <label for="bond">Фуги</label>
+          <select id="bond"></select>
+          <p class="muted">Плочката е от снимката в магазина: QUA, 60×120, гланц, 2.16 м² в кашон, 36.70 € кашонът (16.99 €/м²).</p>
+        </div>
+      </div>
     </div>
   </section>
 
   <section class="sheet" aria-labelledby="h-cost">
     <div class="sheet-head">
-      <div class="caps">Какво влиза в сметката</div>
-      <h2 id="h-cost">Цени от табелите, които снима</h2>
+      <div class="caps">Сметка</div>
+      <h2 id="h-cost">Какво струва, което вече има цена</h2>
     </div>
-    <div class="costs-wrap">
-      <table class="costs">
+    <div class="table-wrap">
+      <table class="data costs">
         <thead><tr><th>Позиция</th><th class="r">Общо</th></tr></thead>
-        <tbody>
-          <tr><td>Гранитогрес Каньон Гриджо 60×120<small>12 кашона × 36.70 € · 23.48 м² + 10% фира = 25.8 м², кашонът е 2.16 м²</small></td><td class="r">440.40 €</td></tr>
-          <tr><td>Маса KLIPLEV Ø120, дъб (JYSK)<small>1 × 299.00 €</small></td><td class="r">299.00 €</td></tr>
-          <tr><td>Стол EJSING, бежово/дъб (JYSK)<small>3 × 50.00 € промо · редовна цена 74.99 €</small></td><td class="r">150.00 €</td></tr>
-          <tr><td>Диван букле, до 2.60 м<small>цената не се чете на снимката</small></td><td class="r">—</td></tr>
-          <tr><td>ТВ секция с камък и LED<small>по поръчка, по размерите от плана</small></td><td class="r">—</td></tr>
-        </tbody>
-        <tfoot><tr><td>Известно досега</td><td class="r">889.40 €</td></tr></tfoot>
+        <tbody id="costs-body"></tbody>
+        <tfoot><tr><td>Известно досега</td><td class="r num" id="costs-total"></td></tr></tfoot>
       </table>
     </div>
+    <p class="muted">Цената на всяка мебел се въвежда в „Избрано“. Сметката следи какво е сложено в модела в момента.</p>
   </section>
 
-  <section class="sheet" aria-labelledby="h-prompt">
+  <section class="sheet" aria-labelledby="h-mat">
     <div class="sheet-head">
-      <div class="caps">Рендер като на спалнята</div>
-      <h2 id="h-prompt">Текст за генератора на снимки</h2>
+      <div class="caps">Материали</div>
+      <h2 id="h-mat">Камък, дъб и топла светлина</h2>
     </div>
-    <div class="prompt">
-      <p>Ако спалнята си я направил с генератор на изображения, пусни му този текст заедно със снимките на дивана, масата, плочката, секцията от Instagram и готовата спалня.</p>
-      <pre id="prompt-text">Фотореалистичен интериорен рендер в същия стил, светлина и палитра като приложената спалня. Дневна с кухненски бокс, 5.20 × 4.50 м, таван 2.65 м.
-
-Под: гланциран гранитогрес 60×120 в сиво-бежов мрамор (като приложената плочка „Каньон Гриджо“), редене по дългата страна с отместване 1/3, с отражения.
-
-Северна стена: ТВ секция 2.80 м по идеята от Instagram. В средата панел от топло бял релефен декоративен камък с LED по контура, телевизор 65" на стената. Отстрани две отворени дъбови колони по 45 см с рафтове и LED под всеки рафт. Отдолу висящ дъбов шкаф (40 см висок, на 22 см от пода) с LED отдолу. Горе дъбова рамка до тавана.
-
-В средата на стаята, с лице към секцията: бял букле диван с обли вертикални канали (като приложения), 2.60 м, възглавници в кремаво и маслинено зелено, светъл килим отпред.
-
-В югоизточния ъгъл, вдясно зад дивана: кръгла дъбова маса Ø120 на конусовиден централен крак, на 20 см от двете стени, три бежови тапицирани стола с дъбова рамка откъм стаята, над масата кремава сферична висяща лампа.
-
-Източна стена: прозорец с черна рамка, бяло перде и ленена завеса. В ъгъла вляво от секцията маслиново дърво в саксия. Кухнята е по западната стена, матово грейж без дръжки. Врата към лоджията с черна рамка в североизточния ъгъл.
-
-Вечерна топла светлина 2700K, мек минималистичен лукс.
-
-Направи го като колаж като спалнята: голям кадър от ъгъла към секцията, три по-малки (масата и кухнята, детайл на камъка с LED, детайл на дивана) и карта с палитра и надпис „ДНЕВНА 23.48 м²“ и „КАМЪК, ДЪБ И СВЕТЛИНА“.</pre>
-      <button class="btn" type="button" id="copy">Копирай текста</button>
+    <div class="swatches">
+      <div class="sw"><div class="chip" id="sw-stone"></div><b>Декоративен камък</b><span>топло бяло · панел зад телевизора</span></div>
+      <div class="sw"><div class="chip" id="sw-oak"></div><b>Натурален дъб</b><span>секцията, масата, нощните шкафчета</span></div>
+      <div class="sw"><div class="chip" id="sw-boucle"></div><b>Букле, кремаво</b><span>диванът и таблата на леглото</span></div>
+      <div class="sw"><div class="chip" id="sw-plank"></div><b>Ламинат дъб</b><span>за сравнение в спалнята</span></div>
+      <div class="sw"><div class="chip" style="background:#5d6646"></div><b>Маслинено зелено</b><span>възглавници, маслиново дърво</span></div>
+      <div class="sw"><div class="chip" style="background:#1d1c1a"></div><b>Черно матово</b><span>рамки на прозорците и вратите към лоджията</span></div>
     </div>
   </section>
 
-  <p class="foot">Размерите са взети от скицата, снимана под ъгъл, затова са с точност до няколко сантиметра. Мястото на прозореца и на вратата към лоджията също е по скицата. Преди да поръчаш секцията, премери стената на място.</p>
+  <p class="foot">Размерите са разчетени от снимка на архитектурния план (до няколко сантиметра). Прозорците и вратите са по плана, мебелите са условни, докато не ми пратиш истинските. Преди да поръчваш по поръчка, премери на място.</p>
 </div>
 
-<script src="js/ui.js"></script>
-<script type="module" src="js/scene.js"></script>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+  setTimeout(function(){
+    if (window.__ready) return;
+    var v = document.getElementById('veil');
+    v.classList.remove('off');
+    v.innerHTML = '3D изгледът не се зареди<small>Провери връзката и презареди страницата</small>';
+  }, 30000);
+</script>
+<script type="module" src="js/app.js"></script>
 </body>
 </html>

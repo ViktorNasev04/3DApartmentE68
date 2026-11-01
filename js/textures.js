@@ -1,4 +1,4 @@
-/* Procedural textures: noise, porcelain tiles, stone, oak, bouclé, rug, TV picture, sky, contact shadows */
+/* Procedural textures: noise, stone, oak, bouclé, rug, TV picture, sky, contact shadows, and the faces the floor shader tiles */
 
 /* ================= noise ================= */
 function makeNoise(seed){
@@ -29,59 +29,6 @@ const smooth = (a,b,v) => { const t = clamp((v-a)/(b-a),0,1); return t*t*(3-2*t)
 const mk = (w,h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
 
 /* ================= procedural textures ================= */
-function marbleFace(seed){
-  // Canyon Grigio: warm grey-beige porcelain, diagonal flowing streaks, thin pale veins. 4 px per cm.
-  const w = 480, h = 240, c = mk(w,h), ctx = c.getContext('2d'), img = ctx.createImageData(w,h), d = img.data;
-  const n = makeNoise(seed*97+13), n2 = makeNoise(seed*131+7), n3 = makeNoise(seed*53+3);
-  const ang = 0.5 + (seed % 4)*0.07, ca = Math.cos(ang), sa = Math.sin(ang);
-  const dark = [160,149,134], mid = [182,171,156], light = [203,193,177], vein = [230,224,213];
-  for (let y = 0; y < h; y++){
-    for (let x = 0; x < w; x++){
-      const px = (x/4 + seed*37)/42, py = (y/4 + seed*11)/42;
-      const ru = px*ca - py*sa, rv = px*sa + py*ca;
-      const wx = fbm(n2, px*0.7, py*0.7, 2);
-      const streak = fbm(n, ru*0.32 + wx*0.7, rv*3.0 + wx*1.4, 4);
-      const cloud = fbm(n3, px*1.4, py*1.4, 3);
-      let t = clamp(0.52 + 0.62*streak + 0.14*cloud, 0, 1);
-      let r, g, b;
-      if (t < 0.5){ const k = t/0.5; r = dark[0]+(mid[0]-dark[0])*k; g = dark[1]+(mid[1]-dark[1])*k; b = dark[2]+(mid[2]-dark[2])*k; }
-      else { const k = (t-0.5)/0.5; r = mid[0]+(light[0]-mid[0])*k; g = mid[1]+(light[1]-mid[1])*k; b = mid[2]+(light[2]-mid[2])*k; }
-      const vn = fbm(n3, ru*1.1 + wx*1.6 + 10, rv*1.3 + 3, 3);
-      const v1 = 1 - smooth(0.0, 0.028, Math.abs(vn));
-      const vn2 = n(ru*4 + wx*2 + 40, rv*4.5);
-      const v2 = (1 - smooth(0.0, 0.035, Math.abs(vn2))) * 0.45 * smooth(-0.1, 0.4, cloud);
-      const v = clamp(v1*0.6 + v2*0.8, 0, 1);
-      r += (vein[0]-r)*v; g += (vein[1]-g)*v; b += (vein[2]-b)*v;
-      const grain = (Math.random()-0.5)*5;
-      const i = (y*w + x)*4;
-      d[i] = r + grain; d[i+1] = g + grain; d[i+2] = b + grain; d[i+3] = 255;
-    }
-  }
-  ctx.putImageData(img,0,0);
-  return c;
-}
-function drawFloor(faces, wM, hM, seed){
-  const ppm = 400, c = mk(Math.round(wM*ppm), Math.round(hM*ppm)), ctx = c.getContext('2d');
-  const tw = 1.2*ppm, th = 0.6*ppm, R = rng(seed);
-  const rows = Math.ceil(hM/0.6);
-  for (let r = 0; r < rows; r++){
-    const off = -((r % 3)*tw/3);
-    for (let x = off; x < c.width; x += tw){
-      const f = faces[Math.floor(R()*faces.length)], flip = R() < 0.5;
-      ctx.save(); ctx.translate(x + tw/2, r*th + th/2); if (flip) ctx.rotate(Math.PI);
-      ctx.drawImage(f, -tw/2, -th/2, tw, th); ctx.restore();
-    }
-  }
-  ctx.strokeStyle = 'rgba(214,206,193,0.9)'; ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  for (let r = 0; r <= rows; r++){
-    ctx.moveTo(0, r*th); ctx.lineTo(c.width, r*th);
-    const off = -((r % 3)*tw/3);
-    for (let x = off; x < c.width; x += tw){ if (x > 0){ ctx.moveTo(x, r*th); ctx.lineTo(x, r*th + th); } }
-  }
-  ctx.stroke();
-  return c;
-}
 function stoneMaps(){
   const w = 380, h = 490, n = makeNoise(7), n2 = makeNoise(29), n3 = makeNoise(41);
   const H = new Float32Array(w*h); let lo = 9, hi = -9;
@@ -214,4 +161,64 @@ function blobCanvas(round){
   return c;
 }
 
-export { makeNoise, fbm, rng, clamp, smooth, mk, marbleFace, drawFloor, stoneMaps, woodCanvas, boucleCanvas, rugCanvas, tvCanvas, skyCanvas, blobCanvas };
+/* ================= tile faces (u = the tile's long side) ================= */
+// Oak plank, 1.20 × 0.20 m
+function plankFace(){
+  const w = 1200, h = 200, c = mk(w,h), ctx = c.getContext('2d'), img = ctx.createImageData(w,h), d = img.data;
+  const n = makeNoise(31), n2 = makeNoise(37), R = rng(5);
+  const A = [206,172,128], B = [168,129,88];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++){
+    const g = fbm(n, x*0.0016, y*0.012, 3);
+    const ring = Math.sin(y*0.16 + g*3.0 + fbm(n2, x*0.0012, y*0.006, 2)*4.0)*0.5 + 0.5;
+    const fine = n(x*0.02, y*0.9)*0.5 + 0.5;
+    const knot = Math.max(0, 1 - Math.hypot((x-820)/38, (y-120)/16)) * 0.6;
+    const t = clamp(0.42*ring + 0.28*fine + 0.22*(g*0.5+0.5) + knot, 0, 1);
+    const k = (y*w + x)*4;
+    d[k] = A[0] + (B[0]-A[0])*t; d[k+1] = A[1] + (B[1]-A[1])*t; d[k+2] = A[2] + (B[2]-A[2])*t; d[k+3] = 255;
+  }
+  ctx.putImageData(img,0,0);
+  ctx.strokeStyle = 'rgba(70,48,28,.25)'; ctx.lineWidth = 2; ctx.strokeRect(1,1,w-2,h-2);
+  return c;
+}
+// Matte stone-look porcelain, square; tone = [r,g,b]
+function stoneFace(seed, tone, size = 512){
+  const c = mk(size,size), ctx = c.getContext('2d'), img = ctx.createImageData(size,size), d = img.data;
+  const n = makeNoise(seed), n2 = makeNoise(seed+9);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++){
+    const v = fbm(n, x*0.006, y*0.006, 4)*0.5 + fbm(n2, x*0.03, y*0.03, 2)*0.25;
+    const grain = (Math.random()-0.5)*7;
+    const k = (y*size + x)*4, s = 1 + v*0.16;
+    d[k] = tone[0]*s + grain; d[k+1] = tone[1]*s + grain; d[k+2] = tone[2]*s + grain; d[k+3] = 255;
+  }
+  ctx.putImageData(img,0,0);
+  return c;
+}
+// Light glazed wall tile with soft veins, 1.20 × 0.60 m
+function wallTileFace(){
+  const w = 640, h = 320, c = mk(w,h), ctx = c.getContext('2d'), img = ctx.createImageData(w,h), d = img.data;
+  const n = makeNoise(71), n2 = makeNoise(73);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++){
+    const wx = fbm(n2, x*0.003, y*0.006, 2);
+    const vein = 1 - smooth(0, 0.035, Math.abs(fbm(n, x*0.00375 + wx, y*0.009 + wx*0.8, 4)));
+    const cloud = fbm(n2, x*0.006, y*0.006, 3);
+    const k = (y*w + x)*4, base = 228 + cloud*9 - vein*15;
+    d[k] = base; d[k+1] = base - 9; d[k+2] = base - 24; d[k+3] = 255;
+  }
+  ctx.putImageData(img,0,0);
+  return c;
+}
+// The photographed Каньон Гриджо face (portrait 60 × 120) turned so its long side runs along u
+function loadPhotoFace(url){
+  return new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => {
+      const c = mk(im.height, im.width), ctx = c.getContext('2d');
+      ctx.translate(c.width, 0); ctx.rotate(Math.PI/2); ctx.drawImage(im, 0, 0);
+      resolve(c);
+    };
+    im.onerror = () => reject(new Error('tile photo did not load'));
+    im.src = url;
+  });
+}
+
+export { makeNoise, fbm, rng, clamp, smooth, mk, stoneMaps, woodCanvas, boucleCanvas, rugCanvas, tvCanvas, skyCanvas, blobCanvas, plankFace, stoneFace, wallTileFace, loadPhotoFace };
