@@ -570,7 +570,7 @@ function toilet(p){
 function vanity(p){
   const g = new THREE.Group(), M = C.M, W = p.W, slab = p.style === 'slab';
   if (slab){
-    rbox(g, W, 0.20, 0.46, 0.015, M.slab, 0, 0.80, 0);
+    rbox(g, W, 0.20, 0.46, 0.015, M.stoneSlab, 0, 0.80, 0);
     const basin = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(0.3, W - 0.24), 0.30), C.paint(0xcdbfa6, 0.4)); basin.rotation.x = -Math.PI/2; basin.position.set(0, 0.9015, 0.04); g.add(basin);
     cyl(g, 0.016, 0.019, 0.30, M.black, 0, 1.05, -0.17, 16);
     box(g, 0.022, 0.022, 0.15, M.black, 0, 1.19, -0.11, false);

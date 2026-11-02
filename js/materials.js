@@ -134,7 +134,7 @@ export function createMaterials(renderer){
     oakH: new THREE.MeshStandardMaterial({ map:oakH, roughness:0.55 }),
     stone: new THREE.MeshStandardMaterial({ map:stoneColor, normalMap:stoneNormal, normalScale:new THREE.Vector2(1.2,1.2), displacementMap:stoneHeight, displacementScale:0.045, roughness:0.96 }),
     ledge: new THREE.MeshStandardMaterial({ map:ledgeColor, normalMap:ledgeNormal, normalScale:new THREE.Vector2(1.6,1.6), displacementMap:ledgeHeight, displacementScale:0.022, roughness:0.95 }),
-    slab: new THREE.MeshStandardMaterial({ map:trav, roughness:0.5 }),
+    stoneSlab: new THREE.MeshStandardMaterial({ map:trav, roughness:0.5 }),
     walnutV: new THREE.MeshStandardMaterial({ map:oakV, color:0x6e4c34, roughness:0.5 }),
     walnutH: new THREE.MeshStandardMaterial({ map:oakH, color:0x6e4c34, roughness:0.5 }),
     art: new THREE.MeshStandardMaterial({ map:art, roughness:0.9 }),
