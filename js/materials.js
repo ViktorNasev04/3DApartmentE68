@@ -126,6 +126,7 @@ export function createMaterials(renderer){
     wall: new THREE.MeshStandardMaterial({ color:0xddd5ca, roughness:0.93 }),
     wallCut: new THREE.MeshStandardMaterial({ color:0x3a352f, roughness:0.9 }),
     ceiling: new THREE.MeshStandardMaterial({ color:0xf2eee8, roughness:0.95 }),
+    ceilingField: new THREE.MeshStandardMaterial({ color:0xf2eee8, roughness:0.95, emissive:0xffd9ad, emissiveIntensity:0 }),
     slab: new THREE.MeshStandardMaterial({ color:0xb9b2a8, roughness:0.95 }),
     outside: new THREE.MeshStandardMaterial({ color:0x8e887f, roughness:0.95 }),
     skirting: new THREE.MeshStandardMaterial({ color:0xb7ab9a, roughness:0.3 }),

@@ -264,6 +264,27 @@ export function initUI(app){
     return { rooms, area, withCut, boxes, cost: boxes * f.price.perBox };
   }
 
+  /* ---------- ceiling ---------- */
+  const ceilStyle = $('#ceil-style'), ceilBand = $('#ceil-band'), ceilDrop = $('#ceil-drop');
+  ceilStyle.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { editor.setCeiling({ style: b.dataset.style }); syncCeiling(); }));
+  ceilBand.addEventListener('input', () => { $('#ceil-band-out').textContent = `${cm(+ceilBand.value)} см`; editor.setCeiling({ band: +ceilBand.value }, false); });
+  ceilBand.addEventListener('change', () => editor.commit());
+  ceilDrop.addEventListener('input', () => { $('#ceil-drop-out').textContent = `${cm(+ceilDrop.value)} см`; editor.setCeiling({ drop: +ceilDrop.value }, false); });
+  ceilDrop.addEventListener('change', () => editor.commit());
+  $('#ceil-view').addEventListener('click', () => { if (editor.ceiling.style !== 'cove') editor.setCeiling({ style: 'cove' }); app.goView('ceiling'); syncViews(); syncCeiling(); $('#stage').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+  function syncCeiling(){
+    const c = editor.ceiling, on = c.style === 'cove';
+    ceilStyle.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.style === c.style)));
+    ceilBand.value = c.band; ceilDrop.value = c.drop; ceilBand.disabled = ceilDrop.disabled = !on;
+    $('#ceil-band-out').textContent = `${cm(c.band)} см`; $('#ceil-drop-out').textContent = `${cm(c.drop)} см`;
+  }
+  function renderCeiling(st){
+    syncCeiling();
+    $('#ceil-stats').textContent = st
+      ? `LED лента: около ${Math.ceil(st.steps)} м по ръба на средните полета и ${Math.ceil(st.walls)} м покрай стените. Фризът е на ${st.low.toFixed(2)} м, средата на ${st.high.toFixed(2)} м.`
+      : 'Таванът е равен, на 2.65 м, с кръгли плафониери.';
+  }
+
   /* ---------- costs ---------- */
   const costsBody = $('#costs-body');
   function renderCosts(){
@@ -327,10 +348,11 @@ export function initUI(app){
     if (d.layout || d.history){ renderItem(); selbarSync(); }
     if (d.commit && !d.history && !d.params) { const it = editor.item(editor.selected); if (it && itemBody.querySelector('#p-rot')){ const r = itemBody.querySelector('#p-rot'); r.value = Math.round(it.rot / 5) * 5 % 360; itemBody.querySelector('output[for="p-rot"]').textContent = `${Math.round(it.rot)}°`; } }
     if (d.floors || d.layout || d.history) renderRooms();
+    if (d.layout || d.history) syncCeiling();
     renderCosts();
   });
 
   syncHud(); syncViews(); setTab('add'); renderItem(); renderVariants(); renderRooms(); renderCosts(); refreshSwatches();
 
-  return { renderVariants, syncViews, refreshSwatches, toast, renderCosts };
+  return { renderVariants, syncViews, refreshSwatches, toast, renderCosts, renderCeiling };
 }

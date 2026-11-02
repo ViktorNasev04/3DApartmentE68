@@ -1,7 +1,8 @@
 /* The building shell: walls with their openings, floors, ceilings, slab, curtains, sky and ceiling lights.
    Walls are rebuilt into one merged mesh whenever the set of lowered (cut) walls changes. */
 import * as THREE from 'three';
-import { WALLS, ROOMS, H as Hcm, CEILING_LIGHTS } from './plan.js';
+import { WALLS, ROOMS, H as Hcm, CEILING_LIGHTS, CEIL_ZONES, BOUNDS } from './plan.js';
+import { buildCove } from './ceiling.js';
 
 const H = Hcm / 100;
 export const CUT = 0.95;                    // height of a lowered wall in the dollhouse view
@@ -195,15 +196,25 @@ export function buildShell(ctx){
   }
 
   /* ---------- floors, ceilings, slab ---------- */
-  const floors = new Map(), ceilings = [];
+  const floors = new Map();
+  const ceilGroup = new THREE.Group(), plainG = new THREE.Group(), coveG = new THREE.Group();
+  ceilGroup.add(plainG, coveG); group.add(ceilGroup);
+  const zoneKey = new Set(CEIL_ZONES.flatMap(z => z.rects.map(q => q.join(','))));
+  const restRects = [];
   for (const r of ROOMS){
     const rects = r.rects.map(q => q.map(v => v/100));
     const f = new THREE.Mesh(floorGeometry(rects, 0, false), FLOOR.tile);
     f.receiveShadow = true; f.renderOrder = 1; f.userData.room = r.id; f.userData.floor = true;
     group.add(f); floors.set(r.id, f);
     const c = new THREE.Mesh(floorGeometry(rects, H, true), M.ceiling);
-    c.userData.room = r.id; group.add(c); ceilings.push(c);
+    c.userData.room = r.id; plainG.add(c);
+    for (const q of r.rects) if (!zoneKey.has(q.join(','))) restRects.push(q.map(v => v/100));
   }
+  const rest = new THREE.Mesh(floorGeometry(restRects, H, true), M.ceiling); coveG.add(rest);
+  /* invisible lid that keeps the sun out except through the glazing; off in the dollhouse view */
+  const roofMat = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }); roofMat.shadowSide = THREE.DoubleSide;
+  const roof = new THREE.Mesh(new THREE.PlaneGeometry(BOUNDS.x1 - BOUNDS.x0 + 1.6, BOUNDS.z1 - BOUNDS.z0 + 1.6), roofMat);
+  roof.rotation.x = -Math.PI/2; roof.position.set((BOUNDS.x0 + BOUNDS.x1)/2, H + 0.03, (BOUNDS.z0 + BOUNDS.z1)/2); roof.castShadow = true; group.add(roof);
   {
     const slab = { pos:[], nor:[] }, caps = { pos:[], nor:[] };
     const all = [...ROOMS.flatMap(r => r.rects), ...WALLS.map(w => [w.x0, w.y0, w.x1, w.y1])];
@@ -272,7 +283,7 @@ export function buildShell(ctx){
     let disc;
     if (L.spots){
       disc = new THREE.Group();
-      for (const [sx, sz] of L.spots){ const s = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.012, 24), M.flush); s.position.set(sx/100, H - 0.006, sz/100); disc.add(s); }
+      for (const [sx, sz] of L.spots){ const s = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.012, 24), M.flush); s.position.set(sx/100, H - 0.006, sz/100); s.userData.spot = true; disc.add(s); }
     } else {
       disc = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.05, 48), M.flush);
       disc.position.set(x, H - 0.025, z);
@@ -280,10 +291,39 @@ export function buildShell(ctx){
     group.add(disc);
     const light = L.light ? new THREE.PointLight(0xffdcb5, L.light, 0, 2) : null;
     if (light){ light.position.set(x, H - 0.25, z); light.userData.evening = true; light.userData.base = L.light; group.add(light); }
-    lamps.push({ disc, light, room: L.room });
+    const inZone = CEIL_ZONES.some(zn => zn.rects.some(q => L.at[0] > q[0] && L.at[0] < q[2] && L.at[1] > q[1] && L.at[1] < q[3]));
+    lamps.push({ disc, light, room: L.room, inZone, spots: !!L.spots, on: true });
   }
 
   function setFloor(roomId, key){ const f = floors.get(roomId); if (f && FLOOR[key]) f.material = FLOOR[key]; }
 
-  return { group, applyCut, floors, ceilings, skies, lamps, curtains, setFloor };
+  /* ceiling style: plain, or suspended with the LED cove; returns LED lengths for the cove */
+  let cove = null;
+  function setCeiling(cfg){
+    if (cove){ coveG.remove(cove.group); cove.group.traverse(o => { if (o.geometry) o.geometry.dispose(); }); cove = null; }
+    const on = !!cfg && cfg.style === 'cove';
+    plainG.visible = !on; coveG.visible = on;
+    let stats = null;
+    if (on){
+      const all = new THREE.Group(), fieldAts = [];
+      let steps = 0, walls = 0;
+      for (const z of CEIL_ZONES){
+        const c = buildCove([z], H, { band: Math.min(cfg.band, z.maxBand ?? 9), drop: cfg.drop }, { field: M.ceilingField, ceiling: M.ceiling, led: M.led });
+        all.add(c.group); steps += c.ledSteps; walls += c.ledWalls; fieldAts.push(c.fieldAt);
+      }
+      coveG.add(all); cove = { group: all };
+      const fieldAt = (x, z) => fieldAts.some(f => f(x, z));
+      stats = { steps, walls, low: H - cfg.drop, high: H };
+      for (const l of lamps){
+        l.on = !l.inZone || l.spots;
+        if (l.light && l.inZone) l.light.position.y = H - 0.65;      // no hot spot on the lowered band
+        if (l.spots) l.disc.children.forEach(s => { s.position.y = (fieldAt(s.position.x, s.position.z) ? H : H - cfg.drop) - 0.006; });
+      }
+    } else {
+      for (const l of lamps){ l.on = true; if (l.light) l.light.position.y = H - 0.25; if (l.spots) l.disc.children.forEach(s => { s.position.y = H - 0.006; }); }
+    }
+    return stats;
+  }
+
+  return { group, applyCut, floors, ceilGroup, roof, skies, lamps, curtains, setFloor, setCeiling };
 }

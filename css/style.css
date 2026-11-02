@@ -238,6 +238,11 @@ table.data{width:100%; border-collapse:collapse; font-size:14px}
 @media (max-width:420px){ .tile-opts{grid-template-columns:1fr} .sw-big{max-width:140px} }
 .sw-big{aspect-ratio:1/2; border-radius:4px; border:1px solid var(--line); background:#a99e8c center/cover no-repeat}
 .opts{display:grid; gap:8px; align-content:start}
+.ceil-opts, .ceil-info{display:grid; gap:14px; align-content:start; min-width:0}
+.ceil-opts .param input[type="range"]{width:100%; accent-color:var(--ink)}
+.ceil-opts .param label{display:flex; justify-content:space-between; gap:8px; font-size:13px; font-weight:600}
+.ceil-opts .param output{font-weight:500; color:var(--muted)}
+.ceil-opts .btn{justify-self:start}
 .opts label{font-size:13px; font-weight:600}
 
 .swatches{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 14px}

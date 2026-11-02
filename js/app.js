@@ -123,16 +123,17 @@ function start(){
     shell.skies.forEach(s => { s.material = sky; });
     scene.background = new THREE.Color(eve ? 0x1a1713 : 0xe9e5de);
     stage.dataset.mode = state.mode;
-    scene.environmentIntensity = eve ? 0.10 : 0.40;
-    hemi.intensity = eve ? 0.14 : 0.36;
+    scene.environmentIntensity = eve ? 0.10 : 0.55;
+    hemi.intensity = eve ? 0.14 : 0.46;
     hemi.color.set(eve ? 0xffe2c0 : 0xf3f1ec);
     sun.visible = !eve;
     syncLights();
-    M.led.color.setRGB(...(eve ? [4.2, 2.9, 1.6] : [1.1, 1.0, 0.86]));
+    M.led.color.setRGB(...(eve ? [4.2, 2.9, 1.6] : [1.9, 1.75, 1.5]));
     M.lampShade.emissiveIntensity = eve ? 1.1 : 0;
     M.flush.emissiveIntensity = eve ? 0.45 : 0;
+    M.ceilingField.emissiveIntensity = eve ? 0.10 : 0;
     M.screen.emissiveIntensity = eve ? 0.5 : 0.35;
-    renderer.toneMappingExposure = eve ? 1.0 : 0.86;
+    renderer.toneMappingExposure = eve ? 1.0 : 0.95;
     bloom.strength = eve ? 0.30 : 0.10;
     requestRender();
   }
@@ -144,6 +145,17 @@ function start(){
     t.uOff.value = (BONDS[editor.bond] || BONDS.third).off;
     t.uRot.value = editor.dir ? 1 : 0;
     FLOOR.oak.userData.tile.uRot.value = editor.dir ? 1 : 0;
+    requestRender();
+  }
+
+  /* suspended ceiling; the stats feed the LED note in the page */
+  let ceilingStats = null, ceilingKey = '';
+  function applyCeiling(){
+    const key = JSON.stringify(editor.ceiling);
+    if (key === ceilingKey) return;
+    ceilingKey = key;
+    ceilingStats = shell.setCeiling(editor.ceiling);
+    if (ui) ui.renderCeiling(ceilingStats);
     requestRender();
   }
 
@@ -169,8 +181,9 @@ function start(){
     const p = camera.position;
     const above = p.y > Hm - 0.05 || state.walls === 'low';
     const inside = !above && p.x > BOUNDS.x0 - 0.5 && p.x < BOUNDS.x1 + 1.2 && p.z > BOUNDS.z0 - 0.5 && p.z < BOUNDS.z1 + 0.5;
-    shell.ceilings.forEach(c => { c.visible = !above; });
-    shell.lamps.forEach(l => { l.disc.visible = !above; });
+    shell.ceilGroup.visible = !above;
+    shell.roof.visible = !above;
+    shell.lamps.forEach(l => { l.disc.visible = !above && l.on; });
     shell.skies.forEach(s => { s.visible = inside; });
     camera.getWorldDirection(look);
     const plan = state.walls === 'low' || (above && look.y < -0.82);
@@ -284,10 +297,11 @@ function start(){
     const d = e.detail || {};
     if (!d.moved){ syncLights(); lastAbove = null; }
     if (d.floors || d.layout) applyFloors();
+    if (d.ceiling || d.layout) applyCeiling();
     if (d.commit){ touched = true; store.saveCurrent(editor.serialize()); }
     requestRender();
   });
-  applyFloors(); applyMode();
+  applyFloors(); applyCeiling(); applyMode();
 
   /* the photographed tile replaces the stand-in once it arrives */
   loadPhotoFace('assets/kanyon-gridzho-60x120.jpg').then(c => { mats.setTilePhoto(c); ui && ui.refreshSwatches(); requestRender(); }).catch(() => {});
@@ -299,6 +313,7 @@ function start(){
     setWalls(w){ state.walls = w; requestRender(); },
   };
   ui = initUI(app);
+  ui.renderCeiling(ceilingStats);
 
   store.addEventListener('variants', () => ui.renderVariants());
   store.addEventListener('error', (e) => ui.toast(e.detail));

@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { TYPES, buildItem, disposeItem, shapesOf, withDefaults } from './catalog.js';
 import { WALL_RECTS, roomAt, ROOMS } from './plan.js';
 import { LAYOUT_REV } from './layouts.js';
+import { CEILING_DEFAULT } from './ceiling.js';
 
 const SNAP = 0.06;                      // snap to a wall face closer than this (m)
 const COL_SEL = 0xe8a33d, COL_BAD = 0xd9534f, COL_DIM = 0x2d6cdf;
@@ -46,7 +47,7 @@ export class Editor extends EventTarget {
     this.root = new THREE.Group(); this.root.name = 'furniture'; scene.add(this.root);
     this.viz = new THREE.Group(); this.viz.name = 'selection'; scene.add(this.viz);
     this.selected = null;
-    this.floors = {}; this.bond = 'third'; this.dir = 0;
+    this.floors = {}; this.bond = 'third'; this.dir = 0; this.ceiling = { ...CEILING_DEFAULT };
     this.past = []; this.future = []; this.current = null;
     this.ray = new THREE.Raycaster(); this.ndc = new THREE.Vector2();
     this.plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -64,7 +65,7 @@ export class Editor extends EventTarget {
   /* ---------- state ---------- */
   item(id){ return this.items.find(i => i.id === id) || null; }
   serialize(){
-    return { v: 1, rev: LAYOUT_REV, floors: { ...this.floors }, bond: this.bond, dir: this.dir,
+    return { v: 1, rev: LAYOUT_REV, floors: { ...this.floors }, bond: this.bond, dir: this.dir, ceiling: { ...this.ceiling },
       items: this.items.map(i => { const o = { id: i.id, type: i.type, x: r2(i.x), z: r2(i.z), rot: Math.round(i.rot * 10) / 10, p: { ...i.p } }; if (i.price != null) o.price = i.price; if (i.note) o.note = i.note; return o; }) };
   }
   applyLayout(layout, { resetHistory = false, keepSelection = false } = {}){
@@ -83,6 +84,7 @@ export class Editor extends EventTarget {
     for (const id of old.keys()) this._dropMesh(id);
     this.items = next;
     this.floors = { ...(layout.floors || {}) }; this.bond = layout.bond || 'third'; this.dir = layout.dir ? 1 : 0;
+    this.ceiling = { ...CEILING_DEFAULT, ...(layout.ceiling || {}) };
     if (!keepSelection || !this.item(this.selected)) this.select(null); else this._updateViz();
     if (resetHistory){ this.past = []; this.future = []; this.current = JSON.stringify(this.serialize()); }
     this._emit('change', { commit: false, layout: true });
@@ -99,6 +101,7 @@ export class Editor extends EventTarget {
   undo(){ if (!this.past.length) return; this.future.push(this.current); this.current = this.past.pop(); this.applyLayout(JSON.parse(this.current), { keepSelection: true }); this._emit('change', { commit: true, history: true }); }
   redo(){ if (!this.future.length) return; this.past.push(this.current); this.current = this.future.pop(); this.applyLayout(JSON.parse(this.current), { keepSelection: true }); this._emit('change', { commit: true, history: true }); }
   setFloors(floors, bond, dir){ if (floors) this.floors = { ...this.floors, ...floors }; if (bond) this.bond = bond; if (dir != null) this.dir = dir; this._emit('change', { commit: false, floors: true }); this.commit(); }
+  setCeiling(cfg, commit = true){ this.ceiling = { ...this.ceiling, ...cfg }; this._emit('change', { commit: false, ceiling: true }); if (commit) this.commit(); }
 
   _makeMesh(it){
     const g = buildItem(it);

@@ -56,6 +56,14 @@ export const ROOMS = [
 
 export const TOTAL_AREA = 61.77;            // with the share of walls, as on the plan
 
+/* Zones of the suspended ceiling with the LED cove (cm): the open living space with the kitchen, hall and passage,
+   the bedroom and the bathroom. The storage closet and the loggia keep a plain ceiling. maxBand caps the band in small rooms. */
+export const CEIL_ZONES = [
+  { id: 'open', rects: [[18, 335, 548, 565], [18, 565, 456, 785], [-54, 510, 18, 785], [-202, 377, 18, 510], [-202, 510, -79, 570], [-12, 335, 18, 377], [-100, 202, -12, 377]] },
+  { id: 'bed', rects: [[0, 0, 398, 323]] },
+  { id: 'bath', rects: [[-202, 0, -12, 190]], maxBand: 0.35 },
+];
+
 /* Ceiling lights (evening mode), [X, Y] */
 export const CEILING_LIGHTS = [
   { room: 'living', at: [288, 470], light: 1.3 }, { room: 'living', at: [120, 690], small: true },
@@ -69,6 +77,7 @@ export const VIEWS = {
   over:    { name: 'Целият апартамент', p: [9.6, 9.2, 12.4], t: [1.78, 0.4, 3.95], h: 44, fit: true },
   top:     { name: 'Отгоре', p: [1.78, 21.0, 3.96], t: [1.78, 0, 3.95], h: 30, fit: true },
   living:  { name: 'Дневна', p: [1.85, 1.62, 7.65], t: [3.00, 1.05, 3.62], h: 74, room: 'living' },
+  ceiling: { name: 'Таванът', p: [0.75, 1.45, 7.45], t: [3.55, 2.15, 4.25], h: 84, room: 'living' },
   kitchen: { name: 'Кухня', p: [3.95, 1.62, 5.55], t: [-0.20, 1.05, 6.75], h: 72, room: 'living' },
   bed:     { name: 'Спалня', p: [3.75, 1.62, 3.05], t: [1.35, 0.85, 0.55], h: 76, room: 'bed' },
   bath:    { name: 'Баня', p: [-0.22, 1.60, 1.12], t: [-1.75, 0.95, 0.42], h: 92, room: 'bath' },
