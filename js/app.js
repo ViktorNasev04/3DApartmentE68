@@ -12,7 +12,8 @@ import { H as Hcm, VIEWS, ROOMS, BOUNDS, roomAt } from './plan.js';
 import { createMaterials, BONDS } from './materials.js';
 import { loadPhotoFace } from './textures.js';
 import { buildShell, CUT } from './shell.js';
-import { setBuildContext } from './catalog.js';
+import { setBuildContext, TYPES } from './catalog.js';
+import { diagram, soundKit, isSound } from './sound.js';
 import { Editor } from './editor.js';
 import { Store } from './store.js';
 import { presetLayout, DEFAULT_PRESET, migrate } from './layouts.js';
@@ -107,6 +108,7 @@ function start(){
   const requestRender = () => { need = true; };
 
   const editor = new Editor({ scene, camera, controls, canvas, stage, labels, requestRender });
+  editor.yOf = (it) => TYPES[it.type] && TYPES[it.type].ceiling ? shell.ceilingYAt(it.x, it.z) - Hm : 0;
   const store = new Store();
 
   /* ---------- state ---------- */
@@ -155,8 +157,33 @@ function start(){
     if (key === ceilingKey) return;
     ceilingKey = key;
     ceilingStats = shell.setCeiling(editor.ceiling);
+    editor.refreshHeights(); renderSound();
     if (ui) ui.renderCeiling(ceilingStats);
     requestRender();
+  }
+
+  /* Dolby diagram: dashed lines from the listener's ears to every speaker, with the angle at the speaker */
+  const soundG = new THREE.Group(); scene.add(soundG);
+  const dash = (color) => new THREE.LineDashedMaterial({ color, dashSize: 0.07, gapSize: 0.05, depthTest: false, transparent: true });
+  const lineMats = { ok: dash(0x3f9b5c), near: dash(0xd9912b), bad: dash(0xc8463d), info: dash(0x8a8378) };
+  let soundData = null, soundShown = false;
+  function renderSound(){
+    for (const c of [...soundG.children]){ soundG.remove(c); c.geometry.dispose(); }
+    soundData = diagram(editor.items, shell.ceilingYAt);
+    if (!soundData){ labels.set('sound', []); soundShown = false; return; }
+    const ear = new THREE.Vector3(...soundData.ear);
+    for (const s of soundData.speakers){
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([ear, new THREE.Vector3(s.x, s.y, s.z)]), lineMats[s.status]);
+      line.computeLineDistances(); line.renderOrder = 20; soundG.add(line);
+    }
+    labels.set('sound', soundData.speakers.map(s => ({ x: s.x, y: s.y + 0.16, z: s.z, text: s.text, cls: 'snd ' + s.status })));
+    labels.show('sound', soundShown);
+  }
+  function syncSound(plan){
+    const show = !!soundData && (plan || isSound(editor.item(editor.selected)));
+    soundG.visible = show;
+    for (const g of editor.root.children) if (g.userData.soundOnly) g.visible = show;
+    if (show !== soundShown){ soundShown = show; labels.show('sound', show); }
   }
 
   /* ---------- wall cut-away ---------- */
@@ -192,6 +219,7 @@ function start(){
       editor.root.traverse(o => { if (o.userData.ceiling) o.visible = !above; });
     }
     if (plan !== lastPlan){ lastPlan = plan; labels.show('rooms', plan); }
+    syncSound(plan);
   }
 
   /* ---------- camera views ---------- */
@@ -298,6 +326,7 @@ function start(){
     if (!d.moved){ syncLights(); lastAbove = null; }
     if (d.floors || d.layout) applyFloors();
     if (d.ceiling || d.layout) applyCeiling();
+    renderSound();
     if (d.commit){ touched = true; store.saveCurrent(editor.serialize()); }
     requestRender();
   });
@@ -311,6 +340,15 @@ function start(){
     requestRender, goView,
     setMode(m){ state.mode = m; applyMode(); },
     setWalls(w){ state.walls = w; requestRender(); },
+    soundReport(){ return soundData; },
+    addSoundKit(){
+      const res = soundKit(editor.serialize(), { problems: (it) => editor.problems(it), ceilingY: shell.ceilingYAt, fieldAt: shell.fieldFits });
+      if (res.error) return res;
+      editor.applyLayout(res.layout); editor.commit();
+      const L = editor.items.find(i => i.type === 'listener'); if (L) editor.select(L.id);
+      goView('top');
+      return res;
+    },
   };
   ui = initUI(app);
   ui.renderCeiling(ceilingStats);

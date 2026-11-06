@@ -298,7 +298,8 @@ export function buildShell(ctx){
   function setFloor(roomId, key){ const f = floors.get(roomId); if (f && FLOOR[key]) f.material = FLOOR[key]; }
 
   /* ceiling style: plain, or suspended with the LED cove; returns LED lengths for the cove */
-  let cove = null;
+  let cove = null, fieldNow = null, dropNow = 0;
+  const inZone = (x, z) => CEIL_ZONES.some(zn => zn.rects.some(q => x*100 > q[0] && x*100 < q[2] && z*100 > q[1] && z*100 < q[3]));
   function setCeiling(cfg){
     if (cove){ coveG.remove(cove.group); cove.group.traverse(o => { if (o.geometry) o.geometry.dispose(); }); cove = null; }
     const on = !!cfg && cfg.style === 'cove';
@@ -313,6 +314,7 @@ export function buildShell(ctx){
       }
       coveG.add(all); cove = { group: all };
       const fieldAt = (x, z) => fieldAts.some(f => f(x, z));
+      fieldNow = fieldAt; dropNow = cfg.drop;
       stats = { steps, walls, low: H - cfg.drop, high: H };
       for (const l of lamps){
         l.on = !l.inZone || l.spots;
@@ -320,10 +322,15 @@ export function buildShell(ctx){
         if (l.spots) l.disc.children.forEach(s => { s.position.y = (fieldAt(s.position.x, s.position.z) ? H : H - cfg.drop) - 0.006; });
       }
     } else {
+      fieldNow = null; dropNow = 0;
       for (const l of lamps){ l.on = true; if (l.light) l.light.position.y = H - 0.25; if (l.spots) l.disc.children.forEach(s => { s.position.y = H - 0.006; }); }
     }
     return stats;
   }
 
-  return { group, applyCut, floors, ceilGroup, roof, skies, lamps, curtains, setFloor, setCeiling };
+  /* ceiling height at a point, and whether a round fixture of radius m fits in the raised middle of the cove */
+  const ceilingYAt = (x, z) => fieldNow && inZone(x, z) && !fieldNow(x, z) ? H - dropNow : H;
+  const fieldFits = (x, z, m = 0) => !fieldNow || !inZone(x, z) || [[0, 0], [m, 0], [-m, 0], [0, m], [0, -m]].every(([dx, dz]) => fieldNow(x + dx, z + dz));
+
+  return { group, applyCut, floors, ceilGroup, roof, skies, lamps, curtains, setFloor, setCeiling, ceilingYAt, fieldFits };
 }

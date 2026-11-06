@@ -70,6 +70,8 @@ export const PRESETS = [
       { id: 'd-ch2', type: 'chair', x: 2.105, z: 6.55, rot: 90, p: {} },
       { id: 'd-ch3', type: 'chair', x: 2.88, z: 7.325, rot: 180, p: {} },
     ] }) },
+  { id: 'cinema', name: 'Кино 5.1.2 с дивана в средата', sound: true, note: 'Dolby Atmos около правия диван: лява, централна и дясна в секцията, задните на 115°, две тонколони в тавана, субуферът до дивана.',
+    layout: () => PRESETS.find(p => p.id === 'straight').layout() },
   { id: 'architect', name: 'Както е на плана', note: 'Подредбата от архитекта: ъглов диван до стената на спалнята, телевизор на южната стена, маса за четирима и бар плот до кухнята.',
     layout: () => ({ floors: { ...FLOORS }, bond: 'third', dir: 0, items: [
       ...common(),

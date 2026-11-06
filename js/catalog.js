@@ -11,6 +11,7 @@ export const CATEGORIES = [
   { id: 'kitchen', name: 'Кухня' },
   { id: 'bedroom', name: 'Спалня' },
   { id: 'bath', name: 'Баня и склад' },
+  { id: 'sound', name: 'Звук, Dolby Atmos' },
   { id: 'other', name: 'Антре, лоджия, други' },
 ];
 
@@ -77,9 +78,14 @@ function tvUnit(p){
     const tv = new THREE.Group(); tv.position.set(0, 1.25, zb2 + 0.03); g.add(tv);
     box(tv, 1.45*s, 0.835*s, 0.03, M.blackGloss, 0, 0, 0);
     const scr = new THREE.Mesh(new THREE.PlaneGeometry(1.43*s, 0.815*s), M.screen); scr.position.z = 0.0155; tv.add(scr);
-    box(g, 0.92, 0.06, 0.09, M.black, 0, 0.63, 0.0);
-    lathe(g, VASE_TALL, M.ceramicCream, -W/2 + 0.25, 0.60, 0.02);
-    lathe(g, VASE_ROUND, M.ceramicOlive, W/2 - 0.25, 0.60, 0.02, 0.8);
+    if (p.audio === 'bar') box(g, 0.92, 0.06, 0.09, M.black, 0, 0.63, 0.0);
+    if (p.audio === 'lcr'){
+      for (const k of [-1, 1]) speakerBox(g, 0.18, 0.30, 0.22, k*(W/2 - 0.15), 0.60, 0.0, 'black');
+      speakerBox(g, 0.50, 0.15, 0.20, 0, 0.60, 0.05, 'black');
+    } else {
+      lathe(g, VASE_TALL, M.ceramicCream, -W/2 + 0.25, 0.60, 0.02);
+      lathe(g, VASE_ROUND, M.ceramicOlive, W/2 - 0.25, 0.60, 0.02, 0.8);
+    }
     blob(g, W + 0.2, 0.6, 0, 0.05, false, 0.5);
     return g;
   }
@@ -114,15 +120,20 @@ function tvUnit(p){
   const tv = new THREE.Group(); tv.position.set(0, 1.22, zb + 0.085); g.add(tv);
   box(tv, 1.45*s, 0.835*s, 0.03, M.blackGloss, 0, 0, 0);
   const scr = new THREE.Mesh(new THREE.PlaneGeometry(1.43*s, 0.815*s), M.screen); scr.position.z = 0.0155; tv.add(scr);
-  box(g, 0.92, 0.06, 0.09, M.black, 0, 0.73, zb + 0.10);
+  if (p.audio === 'bar') box(g, 0.92, 0.06, 0.09, M.black, 0, 0.73, zb + 0.10);
+  const lcr = p.audio === 'lcr';
+  if (lcr){
+    for (const k of [-1, 1]) speakerBox(g, 0.20, 0.32, 0.24, k*(W/2 - colW/2), cab1, zb + 0.05, 'black');
+    speakerBox(g, 0.52, 0.16, 0.20, 0, cab1, zb + 0.16, 'black');
+  }
   if (p.decor){
     const lx = -W/2 + colW/2, rx = W/2 - colW/2;
     lathe(g, VASE_TALL, M.ceramicCream, lx, 1.175, zb + 0.15);
     lathe(g, BOWL, M.ceramicDark, lx, 1.755, zb + 0.16);
-    box(g, 0.24, 0.035, 0.18, M.book1, lx, 0.637, zb + 0.16); box(g, 0.21, 0.03, 0.16, M.book2, lx + 0.01, 0.67, zb + 0.16);
+    if (!lcr){ box(g, 0.24, 0.035, 0.18, M.book1, lx, 0.637, zb + 0.16); box(g, 0.21, 0.03, 0.16, M.book2, lx + 0.01, 0.67, zb + 0.16); }
     lathe(g, VASE_ROUND, M.ceramicOlive, rx - 0.07, 1.175, zb + 0.15, 0.8); lathe(g, VASE_TALL, M.ceramicCream, rx + 0.09, 1.175, zb + 0.15, 0.65);
     const knot = new THREE.Mesh(new THREE.TorusKnotGeometry(0.045, 0.018, 64, 8, 2, 3), M.ceramicCream); knot.position.set(rx, 1.80, zb + 0.16); knot.castShadow = true; g.add(knot);
-    lathe(g, VASE_ROUND, M.ceramicCream, rx, 0.635, zb + 0.16, 0.9);
+    if (!lcr) lathe(g, VASE_ROUND, M.ceramicCream, rx, 0.635, zb + 0.16, 0.9);
     const px = -W/2 + colW + 0.18;
     lathe(g, VASE_TALL, M.ceramicCream, px, cab1, zb + 0.20, 1.05);
     for (let i = 0; i < 6; i++){
@@ -726,6 +737,64 @@ function floorMirror(){
   return g;
 }
 
+/* ---------- sound ---------- */
+/* box speaker standing on (x, y, z) = bottom centre, back at z; front grille, woofer and tweeter on +z */
+function speakerBox(parent, w, h, d, x, y, z, finish){
+  const body = finish === 'white' ? C.paint(0xeeebe5, 0.5) : finish === 'walnut' ? C.M.walnutV : C.paint(0x1d1c1b, 0.5);
+  const grille = C.paint(finish === 'white' ? 0xd9d5cd : 0x2b2a28, 0.95);
+  box(parent, w, h, d, body, x, y + h/2, z + d/2);
+  box(parent, w - 0.02, h - 0.02, 0.006, grille, x, y + h/2, z + d + 0.003, false);
+  if (h > w*1.2){
+    const t = new THREE.Mesh(new THREE.CircleGeometry(Math.min(0.02, w*0.12), 20), C.M.black); t.position.set(x, y + h - 0.06, z + d + 0.0065); parent.add(t);
+    const r = new THREE.Mesh(new THREE.RingGeometry(w*0.30, w*0.34, 32), C.M.black); r.position.set(x, y + h*0.38, z + d + 0.0065); parent.add(r);
+  }
+}
+const SPK = { stand: { y: 0.80, tw: 1.08 }, floor: { y: 0, tw: 0.24 }, wall: { y: 1.16, tw: 1.40 } };
+function speaker(p){
+  const g = new THREE.Group(), M = C.M;
+  if (p.kind === 'tower'){ speakerBox(g, 0.22, 1.02, 0.28, 0, 0.02, -0.15, p.color); box(g, 0.26, 0.02, 0.32, M.black, 0, 0.01, -0.01, false); blob(g, 0.4, 0.45, 0, 0, false, 0.5); return g; }
+  const m = SPK[p.mount] || SPK.stand;
+  if (p.mount === 'stand'){
+    box(g, 0.26, 0.02, 0.28, M.black, 0, 0.01, 0, false);
+    box(g, 0.05, m.y - 0.04, 0.05, M.black, 0, m.y/2, 0);
+    box(g, 0.20, 0.02, 0.22, M.black, 0, m.y - 0.01, 0, false);
+    blob(g, 0.4, 0.42, 0, 0, false, 0.45);
+  }
+  if (p.mount === 'wall') box(g, 0.06, 0.10, 0.04, M.black, 0, m.y + 0.10, -0.11, false);
+  speakerBox(g, 0.18, 0.30, 0.22, 0, m.y, p.mount === 'wall' ? -0.09 : -0.11, p.color);
+  return g;
+}
+function centerSpeaker(p){
+  const g = new THREE.Group();
+  speakerBox(g, 0.52, 0.16, 0.20, 0, p.y, -0.10, p.color);
+  return g;
+}
+function subwoofer(p){
+  const g = new THREE.Group(), M = C.M;
+  const body = p.color === 'white' ? C.paint(0xeeebe5, 0.5) : C.paint(0x1d1c1b, 0.5);
+  rbox(g, 0.36, 0.40, 0.40, 0.02, body, 0, 0.22, 0);
+  box(g, 0.30, 0.02, 0.34, M.black, 0, 0.01, 0, false);
+  const w = new THREE.Mesh(new THREE.CircleGeometry(0.13, 40), C.paint(0x2b2a28, 0.9)); w.position.set(0, 0.22, 0.2015); g.add(w);
+  const r = new THREE.Mesh(new THREE.RingGeometry(0.13, 0.145, 40), M.black); r.position.set(0, 0.22, 0.202); g.add(r);
+  blob(g, 0.55, 0.55, 0, 0, false, 0.55);
+  return g;
+}
+function ceilingSpeaker(){
+  const g = new THREE.Group(), M = C.M, H = C.H;
+  const d = cyl(g, 0.125, 0.125, 0.012, M.white, 0, H - 0.006, 0, 40); d.castShadow = false;
+  const r = new THREE.Mesh(new THREE.RingGeometry(0.105, 0.112, 40), C.paint(0xd2cec7, 0.6)); r.rotation.x = Math.PI/2; r.position.y = H - 0.0125; g.add(r);
+  return g;
+}
+function listener(){
+  const g = new THREE.Group(); g.userData.soundOnly = true;
+  const mat = C.paint(0x2d6cdf, 0.5);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.012, 8, 48), mat); ring.rotation.x = Math.PI/2; ring.position.y = 0.02; g.add(ring);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.085, 24, 16), mat); head.position.y = 1.05; g.add(head);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.08, 12), mat); nose.rotation.x = Math.PI/2; nose.position.set(0, 1.05, 0.11); g.add(nose);
+  g.traverse(o => { if (o.isMesh){ o.castShadow = false; o.userData.keep = true; } });
+  return g;
+}
+
 /* ---------- the catalogue ---------- */
 const R = (key, label, min, max, step, def, extra) => ({ key, label, type: 'range', min, max, step, def, ...extra });
 const CH = (key, label, options, def, extra) => ({ key, label, type: 'choice', options, def, ...extra });
@@ -734,7 +803,11 @@ const B = (key, label, def, extra) => ({ key, label, type: 'bool', def, ...extra
 
 export const TYPES = {
   tvunit: { name: 'ТВ секция', cat: 'living', build: tvUnit,
-    params: [CH('style', 'Вид', [['stone', 'С камък до тавана'], ['lowboard', 'Нисък шкаф']], 'stone'), R('W', 'Ширина', 1.6, 3.4, 0.05, 2.8), CH('tv', 'Телевизор', [['55', '55"'], ['65', '65"'], ['75', '75"']], '65'), B('decor', 'Декорация', true, { if: p => p.style === 'stone' })],
+    params: [CH('style', 'Вид', [['stone', 'С камък до тавана'], ['lowboard', 'Нисък шкаф']], 'stone'), R('W', 'Ширина', 1.6, 3.4, 0.05, 2.8), CH('tv', 'Телевизор', [['55', '55"'], ['65', '65"'], ['75', '75"']], '65'),
+      CH('audio', 'Звук', [['bar', 'Саундбар'], ['lcr', 'Тонколони лява, център, дясна'], ['none', 'Без']], 'bar'), B('decor', 'Декорация', true, { if: p => p.style === 'stone' })],
+    sources: p => p.audio !== 'lcr' ? [] : p.style === 'lowboard'
+      ? [{ role: 'front', x: -(p.W/2 - 0.15), y: 0.84, z: 0.1 }, { role: 'front', x: p.W/2 - 0.15, y: 0.84, z: 0.1 }, { role: 'center', x: 0, y: 0.68, z: 0.15 }]
+      : [{ role: 'front', x: -(p.W/2 - 0.225), y: 0.86, z: 0 }, { role: 'front', x: p.W/2 - 0.225, y: 0.86, z: 0 }, { role: 'center', x: 0, y: 0.70, z: 0.07 }],
     size: p => [p.W, p.style === 'lowboard' ? 0.40 : 0.38], note: 'по поръчка' },
   sofa: { name: 'Диван', cat: 'living', build: sofa, shapes: sofaShapes,
     params: [CH('kind', 'Вид', [['straight', 'Прав'], ['corner-l', 'Ъглов, шезлонгът вляво'], ['corner-r', 'Ъглов, шезлонгът вдясно']], 'straight'),
@@ -795,6 +868,20 @@ export const TYPES = {
   mirror: { name: 'Огледало, стоящо', cat: 'other', build: floorMirror, params: [], size: () => [0.62, 0.28] },
   bistro: { name: 'Масичка и 2 стола', cat: 'other', build: bistro, params: [], size: () => [1.30, 0.70] },
   ac: { name: 'Климатик, външно тяло', cat: 'other', build: acOutdoor, params: [], size: () => [0.80, 0.36] },
+  speaker: { name: 'Тонколона', cat: 'sound', build: speaker, wall: p => p.mount === 'wall' && p.kind !== 'tower',
+    params: [CH('kind', 'Вид', [['shelf', 'Рафтова'], ['tower', 'Колона']], 'shelf'), { ...CH('mount', 'Монтаж', [['stand', 'На стойка'], ['wall', 'На стената'], ['floor', 'На пода']], 'stand'), if: p => p.kind !== 'tower' }, CO('color', 'Цвят', [['black', 0x1d1c1b, 'Черна'], ['white', 0xeeebe5, 'Бяла'], ['walnut', 0x5a3e2b, 'Орех']], 'black')],
+    size: p => p.kind === 'tower' ? [0.26, 0.32] : p.mount === 'stand' ? [0.26, 0.28] : [0.20, 0.24],
+    sources: p => [{ role: 'speaker', x: 0, y: p.kind === 'tower' ? 0.95 : (SPK[p.mount] || SPK.stand).tw, z: 0 }],
+    info: 'Dolby: предните са на 22–30° от центъра, задните (съраунд) на 110–120°, на височината на ушите или малко над нея.' },
+  centerspk: { name: 'Централна тонколона', cat: 'sound', build: centerSpeaker, wall: true,
+    params: [R('y', 'Височина (на шкаф)', 0, 1.2, 0.01, 0.6), CO('color', 'Цвят', [['black', 0x1d1c1b, 'Черна'], ['white', 0xeeebe5, 'Бяла']], 'black')],
+    size: () => [0.52, 0.20], sources: p => [{ role: 'center', x: 0, y: p.y + 0.08, z: 0 }], info: 'Централната е точно пред мястото за слушане, под или над телевизора.' },
+  sub: { name: 'Субуфер', cat: 'sound', build: subwoofer, params: [CO('color', 'Цвят', [['black', 0x1d1c1b, 'Черен'], ['white', 0xeeebe5, 'Бял']], 'black')],
+    size: () => [0.36, 0.40], sources: () => [{ role: 'sub', x: 0, y: 0.22, z: 0 }], info: 'Басът не се чува откъде идва, затова субуферът може да е почти навсякъде. Най-добре до стена или до дивана.' },
+  ceilspk: { name: 'Таванна тонколона (Atmos)', cat: 'sound', build: ceilingSpeaker, ceiling: true, wall: true, params: [], size: () => [0.25, 0.25], round: true,
+    sources: () => [{ role: 'top', x: 0, y: null, z: 0 }], info: 'Dolby 5.1.2: двете таванни са малко пред главата, на 65–100° (идеално 80°), на една линия с предните.' },
+  listener: { name: 'Място за слушане', cat: 'sound', build: listener, flat: true, marker: true, params: [], size: () => [0.44, 0.44], round: true,
+    info: 'Главата на средното място на дивана. Линиите към тонколоните показват ъглите по Dolby: зелено е в препоръката, оранжево е близо, червено е далеч.' },
   box: { name: 'Друго (по размер)', cat: 'other', build: customBox,
     params: [{ key: 'name', label: 'Име', type: 'text', def: 'Мебел' }, R('W', 'Ширина', 0.1, 3.6, 0.05, 1.0), R('D', 'Дълбочина', 0.1, 2.4, 0.05, 0.5), R('H', 'Височина', 0.05, 2.65, 0.05, 0.8), CO('color', 'Цвят', BOXCOL, 'oak')],
     size: p => [p.W, p.D] },
@@ -863,6 +950,7 @@ export function buildItem(item){
   const raw = T.build(item.p);
   const g = compact(raw);
   g.userData.itemId = item.id;
+  if (raw.userData.soundOnly) g.userData.soundOnly = true;
   return g;
 }
 

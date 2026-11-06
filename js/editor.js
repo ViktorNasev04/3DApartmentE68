@@ -52,6 +52,7 @@ export class Editor extends EventTarget {
     this.ray = new THREE.Raycaster(); this.ndc = new THREE.Vector2();
     this.plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     this.drag = null; this.tap = null; this.issues = [];
+    this.yOf = () => 0;                 // height offset per piece; the app lifts ceiling speakers with the ceiling
     this.vizMats = {
       sel: new THREE.MeshBasicMaterial({ color: COL_SEL, transparent: true, opacity: 0.95, depthTest: false, toneMapped: false }),
       bad: new THREE.MeshBasicMaterial({ color: COL_BAD, transparent: true, opacity: 0.95, depthTest: false, toneMapped: false }),
@@ -74,7 +75,7 @@ export class Editor extends EventTarget {
     for (const n of next){
       const o = old.get(n.id);
       if (o && o.type === n.type && JSON.stringify(o.p) === JSON.stringify(n.p)){
-        const m = this.meshes.get(n.id); m.position.set(n.x, 0, n.z); m.rotation.y = rad(n.rot);
+        const m = this.meshes.get(n.id); m.position.set(n.x, this.yOf(n), n.z); m.rotation.y = rad(n.rot);
         old.delete(n.id);
       } else {
         if (o) old.delete(n.id), this._dropMesh(n.id);
@@ -105,7 +106,7 @@ export class Editor extends EventTarget {
 
   _makeMesh(it){
     const g = buildItem(it);
-    g.position.set(it.x, 0, it.z); g.rotation.y = rad(it.rot);
+    g.position.set(it.x, this.yOf(it), it.z); g.rotation.y = rad(it.rot);
     this.root.add(g); this.meshes.set(it.id, g);
   }
   _dropMesh(id){ const m = this.meshes.get(id); if (!m) return; this.root.remove(m); disposeItem(m); this.meshes.delete(id); }
@@ -114,7 +115,8 @@ export class Editor extends EventTarget {
   /* ---------- geometry queries ---------- */
   polys(it, x = it.x, z = it.z, rot = it.rot){ return shapesOf(it.type, it.p).map(r => corners(r, x, z, rad(rot))); }
   box(it, x, z, rot){ return bounds(this.polys(it, x, z, rot)); }
-  solid(it){ const T = TYPES[it.type]; return !T.flat && !T.wall; }
+  solid(it){ const T = TYPES[it.type]; if (T.flat || T.ceiling) return false; return typeof T.wall === 'function' ? !T.wall(it.p) : !T.wall; }
+  refreshHeights(){ for (const it of this.items){ const m = this.meshes.get(it.id); if (m) m.position.y = this.yOf(it); } }
   related(a, b){ const ta = TYPES[a.type], tb = TYPES[b.type]; return (ta.carries && ta.carries === b.type) || (tb.carries && tb.carries === a.type); }
 
   problems(it){
@@ -131,7 +133,8 @@ export class Editor extends EventTarget {
 
   /* free distance from each side of the piece to the nearest wall or other piece */
   clearances(it){
-    if (TYPES[it.type].wall) return [];
+    const T = TYPES[it.type];
+    if (T.ceiling || T.marker || (typeof T.wall === 'function' ? T.wall(it.p) : T.wall)) return [];
     const b = this.box(it);
     const obs = WALL_RECTS.map(w => ({ x0: w.x0, z0: w.z0, x1: w.x1, z1: w.z1 }));
     if (this.solid(it)) for (const o of this.items) if (o !== it && this.solid(o) && !this.related(it, o)) obs.push(this.box(o));
@@ -214,7 +217,7 @@ export class Editor extends EventTarget {
   }
   place(it, x, z, rot = it.rot){
     it.x = x; it.z = z; it.rot = ((rot % 360) + 360) % 360;
-    const m = this.meshes.get(it.id); m.position.set(x, 0, z); m.rotation.y = rad(it.rot);
+    const m = this.meshes.get(it.id); m.position.set(x, this.yOf(it), z); m.rotation.y = rad(it.rot);
   }
   rotateBy(id, deg, commit = true){
     const it = this.item(id); if (!it) return;
@@ -291,8 +294,8 @@ export class Editor extends EventTarget {
     this._pick(e);
     const hits = this.ray.intersectObjects(this.root.children, true);
     for (const h of hits){
-      let o = h.object; while (o && !o.userData.itemId) o = o.parent;
-      if (o && h.object.visible !== false) return o.userData.itemId;
+      let o = h.object, shown = true; while (o && !o.userData.itemId){ if (!o.visible) shown = false; o = o.parent; }
+      if (o && shown && o.visible) return o.userData.itemId;
     }
     return null;
   }

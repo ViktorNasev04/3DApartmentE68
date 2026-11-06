@@ -72,6 +72,16 @@ export const CEILING_LIGHTS = [
   { room: 'loggia', at: [505, 160], small: true },
 ];
 
+/* Floor area swept by doors that open into a room (metres): keep free when placing things automatically */
+export const DOOR_SWINGS = [
+  { id: 'loggia', x0: 4.38, z0: 3.35, x1: 5.38, z1: 4.35 },
+  { id: 'balcony', x0: 3.08, z0: 1.55, x1: 3.98, z1: 2.45 },
+  { id: 'bedroom', x0: 0.00, z0: 2.40, x1: 0.80, z1: 3.20 },
+  { id: 'bath', x0: -1.10, z0: 1.15, x1: -0.35, z1: 1.90 },
+  { id: 'closet', x0: -1.00, z0: 2.50, x1: -0.30, z1: 3.20 },
+  { id: 'entrance', x0: -2.02, z0: 4.10, x1: -1.02, z1: 5.10 },
+];
+
 /* Camera presets in metres: p = eye, t = target, h = horizontal field of view. */
 export const VIEWS = {
   over:    { name: 'Целият апартамент', p: [9.6, 9.2, 12.4], t: [1.78, 0.4, 3.95], h: 44, fit: true },

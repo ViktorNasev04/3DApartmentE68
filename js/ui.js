@@ -80,6 +80,8 @@ export function initUI(app){
   const add = bodies.add;
   for (const c of CATEGORIES){
     const list = el('div', { class: 'cat-list' });
+    if (c.id === 'sound') list.append(el('button', { type: 'button', class: 'cat-item kit', onclick: () => runKit() },
+      el('b', { text: 'Комплект 5.1.2 около дивана' }), el('span', { text: 'Слага всички тонколони по ъглите на Dolby спрямо дивана' })));
     for (const [type, T] of Object.entries(TYPES)){
       if (T.cat !== c.id) continue;
       const p = Object.fromEntries(T.params.map(d => [d.key, d.def]));
@@ -116,6 +118,8 @@ export function initUI(app){
     const sh = shapesOf(it.type, it.p);
     const w = Math.max(...sh.map(r => r[2])) - Math.min(...sh.map(r => r[0])), d = Math.max(...sh.map(r => r[3])) - Math.min(...sh.map(r => r[1]));
     itemBody.append(el('div', { class: 'item-head' }, el('h3', { text: displayName(it) }), el('span', { class: 'num', text: T.round ? `Ø${cm(w)} см` : `${cm(w)} × ${cm(d)} см` })));
+    if (T.info) itemBody.append(el('p', { class: 'muted', text: T.info }));
+    if (it.type === 'listener') itemBody.append(el('ul', { class: 'snd-list', id: 'snd-report' }));
     itemBody.append(el('p', { class: 'warn', id: 'item-warn', role: 'status' }));
     renderWarn();
     const form = el('div', { class: 'params' });
@@ -166,8 +170,8 @@ export function initUI(app){
         ...[[-90, '−90°'], [-15, '−15°'], [15, '+15°'], [90, '+90°']].map(([a, t]) => el('button', { type: 'button', text: t, onclick: () => editor.rotateBy(it.id, a) })));
       form.append(el('div', { class: 'param' }, el('label', { for: 'p-rot' }, el('span', { text: 'Завъртане' }), out), inp, btns));
     }
-    // price and note
-    {
+    // price and note (not for the listening-position marker)
+    if (!T.marker){
       const def = T.price ? T.price(it.p) : null;
       const pr = el('input', { type: 'number', id: 'p-price', min: '0', step: '0.01', inputmode: 'decimal', placeholder: def != null ? String(def) : 'няма', value: it.price ?? '' });
       pr.addEventListener('change', () => { const v = pr.value.trim() === '' ? null : Math.max(0, +pr.value); editor.setMeta(it.id, { price: Number.isFinite(v) ? v : null }); editor.commit(); renderCosts(); });
@@ -180,6 +184,7 @@ export function initUI(app){
     itemBody.append(form, el('div', { class: 'item-actions' },
       el('button', { type: 'button', class: 'btn ghost', text: 'Копие', onclick: () => editor.duplicate(it.id) }),
       el('button', { type: 'button', class: 'btn ghost danger', text: 'Махни', onclick: () => editor.remove(it.id) })));
+    renderSoundReport();
   }
 
   function renderWarn(){
@@ -190,11 +195,31 @@ export function initUI(app){
     w.hidden = !issues.length;
   }
 
+  /* angles of the speakers as seen from the listener */
+  function renderSoundReport(){
+    const ul = document.getElementById('snd-report'); if (!ul) return;
+    const data = app.soundReport();
+    ul.replaceChildren();
+    if (!data || !data.speakers.length){ ul.append(el('li', {}, el('span', { class: 'muted', text: 'Няма тонколони. Сложи комплекта 5.1.2 от „Добави“.' }))); return; }
+    const RANGE = { center: '0°', front: '22–30°', surround: '110–120°', top: '65–100°' };
+    const VERD = { ok: 'по Dolby', near: 'близо до препоръката', bad: 'далеч от препоръката', info: '' };
+    const order = { front: 0, center: 1, surround: 2, top: 3, sub: 4 };
+    for (const s of [...data.speakers].sort((a, b) => order[a.role] - order[b.role] || a.az - b.az)){
+      ul.append(el('li', { class: 'st-' + s.status }, el('b', { text: s.name }), el('span', { class: 'num', text: s.role === 'sub' ? `${s.dist.toFixed(1)} м` : `${s.text}` }),
+        s.role === 'sub' ? el('small', { text: 'Басът няма посока, мястото е свободно.' }) : el('small', { text: `Dolby: ${RANGE[s.role]} · ${VERD[s.status]} · ${s.dist.toFixed(2)} м до главата` })));
+    }
+  }
+  function runKit(){
+    const res = app.addSoundKit();
+    if (res.error){ toast(res.error); return; }
+    toast(res.notes.length ? res.notes.join(' ') : 'Тонколоните са по ъглите на Dolby. Изберете ги, за да видите линиите.');
+  }
+
   /* ---------- variants ---------- */
   const presetsEl = $('#presets');
   for (const P of PRESETS){
     presetsEl.append(el('div', { class: 'preset' }, el('b', { text: P.name }), el('p', { text: P.note }),
-      el('button', { type: 'button', class: 'btn ghost', text: 'Зареди', onclick: () => { editor.applyLayout(presetLayout(P.id)); editor.commit(); toast(`Зареден: ${P.name}. С „Назад“ се връщаш.`); } })));
+      el('button', { type: 'button', class: 'btn ghost', text: 'Зареди', onclick: () => { editor.applyLayout(presetLayout(P.id)); if (P.sound) app.addSoundKit(); else editor.commit(); toast(`Зареден: ${P.name}. С „Назад“ се връщаш.`); } })));
   }
   const savedEl = $('#saved'), noteEl = $('#storage-note');
   function renderVariants(){
@@ -300,6 +325,7 @@ export function initUI(app){
     const groups = new Map();
     for (const it of editor.items){
       const T = TYPES[it.type];
+      if (T.marker) continue;
       const price = it.price != null ? it.price : (T.price ? T.price(it.p) : null);
       const name = displayName(it);
       const key = name + '|' + price + '|' + (it.note || '');
@@ -344,7 +370,7 @@ export function initUI(app){
   editor.addEventListener('change', (e) => {
     const d = e.detail || {};
     syncHud();
-    if (d.moved || d.params){ if (!moveRaf) moveRaf = requestAnimationFrame(() => { moveRaf = 0; renderWarn(); }); if (d.moved) return; }
+    if (d.moved || d.params){ if (!moveRaf) moveRaf = requestAnimationFrame(() => { moveRaf = 0; renderWarn(); renderSoundReport(); }); if (d.moved) return; }
     if (d.layout || d.history){ renderItem(); selbarSync(); }
     if (d.commit && !d.history && !d.params) { const it = editor.item(editor.selected); if (it && itemBody.querySelector('#p-rot')){ const r = itemBody.querySelector('#p-rot'); r.value = Math.round(it.rot / 5) * 5 % 360; itemBody.querySelector('output[for="p-rot"]').textContent = `${Math.round(it.rot)}°`; } }
     if (d.floors || d.layout || d.history) renderRooms();
