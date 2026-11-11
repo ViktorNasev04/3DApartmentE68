@@ -8,13 +8,14 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { H as Hcm, VIEWS, ROOMS, BOUNDS, roomAt } from './plan.js';
+import { H as Hcm, VIEWS, ROOMS, BOUNDS, roomAt, setLines } from './plan.js';
 import { createMaterials, BONDS } from './materials.js';
 import { loadPhotoFace } from './textures.js';
 import { buildShell, CUT } from './shell.js';
 import { setBuildContext, TYPES } from './catalog.js';
 import { diagram, soundKit, isSound } from './sound.js';
 import { Editor } from './editor.js';
+import { WallTool } from './walls.js';
 import { Store } from './store.js';
 import { presetLayout, DEFAULT_PRESET, migrate } from './layouts.js';
 import { initUI } from './ui.js';
@@ -71,13 +72,18 @@ function start(){
   const { M, FLOOR } = mats;
   setBuildContext({ ...mats, H: Hm });
 
-  const shell = buildShell(mats);
+  let shell = buildShell(mats);              // rebuilt whenever a wall moves (applyWalls)
   scene.add(shell.group);
 
   /* mirror under the glossy floor */
-  const fw = BOUNDS.x1 - BOUNDS.x0, fd = BOUNDS.z1 - BOUNDS.z0;
-  const reflector = new Reflector(new THREE.PlaneGeometry(fw, fd), { textureWidth: 512, textureHeight: 512, color: 0xffffff, clipBias: 0.002, multisample: 0 });
-  reflector.rotation.x = -Math.PI/2; reflector.position.set((BOUNDS.x0 + BOUNDS.x1)/2, -0.0006, (BOUNDS.z0 + BOUNDS.z1)/2);
+  const reflector = new Reflector(new THREE.PlaneGeometry(1, 1), { textureWidth: 512, textureHeight: 512, color: 0xffffff, clipBias: 0.002, multisample: 0 });
+  reflector.rotation.x = -Math.PI/2;
+  function fitReflector(){
+    reflector.geometry.dispose();
+    reflector.geometry = new THREE.PlaneGeometry(BOUNDS.x1 - BOUNDS.x0, BOUNDS.z1 - BOUNDS.z0);
+    reflector.position.set((BOUNDS.x0 + BOUNDS.x1)/2, -0.0006, (BOUNDS.z0 + BOUNDS.z1)/2);
+  }
+  fitReflector();
   scene.add(reflector);
 
   /* lights */
@@ -109,6 +115,7 @@ function start(){
 
   const editor = new Editor({ scene, camera, controls, canvas, stage, labels, requestRender });
   editor.yOf = (it) => TYPES[it.type] && TYPES[it.type].ceiling ? shell.ceilingYAt(it.x, it.z) - Hm : 0;
+  const walls = new WallTool({ scene, camera, canvas, stage, controls, labels, editor, requestRender, getShell: () => shell });
   const store = new Store();
 
   /* ---------- state ---------- */
@@ -119,10 +126,10 @@ function start(){
     const eve = evening();
     scene.traverse(o => { if (o.isLight && o.userData.evening) o.visible = eve; });
   }
+  function dressSky(){ const sky = evening() ? M.skyEve : M.skyDay; shell.skies.forEach(s => { s.material = sky; }); }
   function applyMode(){
     const eve = evening();
-    const sky = eve ? M.skyEve : M.skyDay;
-    shell.skies.forEach(s => { s.material = sky; });
+    dressSky();
     scene.background = new THREE.Color(eve ? 0x1a1713 : 0xe9e5de);
     stage.dataset.mode = state.mode;
     scene.environmentIntensity = eve ? 0.10 : 0.55;
@@ -134,6 +141,7 @@ function start(){
     M.lampShade.emissiveIntensity = eve ? 1.1 : 0;
     M.flush.emissiveIntensity = eve ? 0.45 : 0;
     M.ceilingField.emissiveIntensity = eve ? 0.10 : 0;
+    M.ledGlow.opacity = eve ? 0.95 : 0.4;
     M.screen.emissiveIntensity = eve ? 0.5 : 0.35;
     renderer.toneMappingExposure = eve ? 1.0 : 0.95;
     bloom.strength = eve ? 0.30 : 0.10;
@@ -148,6 +156,20 @@ function start(){
     t.uRot.value = editor.dir ? 1 : 0;
     FLOOR.oak.userData.tile.uRot.value = editor.dir ? 1 : 0;
     requestRender();
+  }
+
+  /* moved walls: a new plan and a new shell, then everything that hangs on the walls follows */
+  function applyWalls(){
+    if (!setLines(editor.walls)) return false;
+    const old = shell;
+    shell = buildShell(mats); scene.add(shell.group);
+    old.dispose();
+    fitReflector(); fitCorners(); roomLabels();
+    applyFloors(); ceilingKey = ''; applyCeiling(); dressSky(); syncLights();
+    lastAbove = null;
+    walls.draw();
+    if (ui) ui.renderWalls();
+    return true;
   }
 
   /* suspended ceiling; the stats feed the LED note in the page */
@@ -228,7 +250,11 @@ function start(){
   function setFov(h){ curH = h; setFovOn(camera, h); }
   /* whole-flat views: back off along the preset direction until the flat fits the current frame */
   const corners = [];
-  for (const x of [BOUNDS.x0 - 0.4, BOUNDS.x1 + 0.25]) for (const z of [BOUNDS.z0 - 0.3, BOUNDS.z1 + 0.35]) for (const y of [-0.24, Hm]) corners.push(new THREE.Vector3(x, y, z));
+  function fitCorners(){
+    corners.length = 0;
+    for (const x of [BOUNDS.x0 - 0.4, BOUNDS.x1 + 0.25]) for (const z of [BOUNDS.z0 - 0.3, BOUNDS.z1 + 0.35]) for (const y of [-0.24, Hm]) corners.push(new THREE.Vector3(x, y, z));
+  }
+  fitCorners();
   function fitted(v){
     const t = new THREE.Vector3(...v.t), dir = new THREE.Vector3(...v.p).sub(t).normalize();
     const cam = camera.clone(); setFovOn(cam, v.h);
@@ -258,7 +284,11 @@ function start(){
   controls.addEventListener('change', requestRender);
 
   /* room names in the top view */
-  labels.set('rooms', ROOMS.map(r => ({ x: r.label[0]/100, y: 0.05, z: r.label[1]/100, cls: 'room', html: `<b>${r.name}</b><span>${r.area.toFixed(2)} м²</span>` })));
+  function roomLabels(){
+    labels.set('rooms', ROOMS.map(r => ({ x: r.label[0]/100, y: 0.05, z: r.label[1]/100, cls: 'room', html: `<b>${r.name}</b><span>${r.area.toFixed(2)} м²</span>` })));
+    labels.show('rooms', lastPlan === true);
+  }
+  roomLabels();
 
   /* ---------- sizing & quality ---------- */
   let reflScale = 0.5, useComposer = true;
@@ -323,6 +353,7 @@ function start(){
   let touched = false;
   editor.addEventListener('change', (e) => {
     const d = e.detail || {};
+    if (d.walls || d.layout) applyWalls();
     if (!d.moved){ syncLights(); lastAbove = null; }
     if (d.floors || d.layout) applyFloors();
     if (d.ceiling || d.layout) applyCeiling();
@@ -330,7 +361,7 @@ function start(){
     if (d.commit){ touched = true; store.saveCurrent(editor.serialize()); }
     requestRender();
   });
-  applyFloors(); applyCeiling(); applyMode();
+  applyWalls(); applyFloors(); applyCeiling(); applyMode();
 
   /* the photographed tile replaces the stand-in once it arrives */
   loadPhotoFace('assets/kanyon-gridzho-60x120.jpg').then(c => { mats.setTilePhoto(c); ui && ui.refreshSwatches(); requestRender(); }).catch(() => {});
@@ -340,6 +371,14 @@ function start(){
     requestRender, goView,
     setMode(m){ state.mode = m; applyMode(); },
     setWalls(w){ state.walls = w; requestRender(); },
+    walls,
+    /* wall editing: plan view with low walls; the cut-away setting comes back afterwards */
+    setWallMode(on){
+      if (on === walls.active) return;
+      if (on){ state.wallsBefore = state.walls; state.walls = 'low'; walls.setActive(true); if (state.view !== 'top') goView('top'); }
+      else { walls.setActive(false); state.walls = state.wallsBefore || 'auto'; }
+      requestRender();
+    },
     soundReport(){ return soundData; },
     addSoundKit(){
       const res = soundKit(editor.serialize(), { problems: (it) => editor.problems(it), ceilingY: shell.ceilingYAt, fieldAt: shell.fieldFits });
@@ -361,7 +400,7 @@ function start(){
     }
     ui.renderVariants();
   });
-  if (mig.changed) setTimeout(() => ui.toast('Спалнята и банята са по колажите. Останалото е както го остави.'), 1200);
+  if (mig.changed && mig.note) setTimeout(() => ui.toast(mig.note + ' Останалото е както го остави.'), 1200);
 
   resize(); goView('over', true);
   requestAnimationFrame(frame);

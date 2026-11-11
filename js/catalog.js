@@ -15,7 +15,7 @@ export const CATEGORIES = [
   { id: 'other', name: 'Антре, лоджия, други' },
 ];
 
-const FABRICS = [['cream', 0xf0ebe2, 'Букле, кремаво'], ['sand', 0xd8c9b1, 'Бежово'], ['olive', 0x67704b, 'Маслинено'], ['stone', 0xa9a49b, 'Сиво'], ['clay', 0xb98a6a, 'Теракота']];
+const FABRICS = [['cream', 0xf0ebe2, 'Букле, кремаво'], ['sand', 0xd8c9b1, 'Бежово'], ['olive', 0x67704b, 'Маслинено'], ['stone', 0xa9a49b, 'Сиво'], ['clay', 0xb98a6a, 'Теракота'], ['anthracite', 0x3d3c3b, 'Букле, антрацит']];
 const FINISH = [['oak', 0, 'Дъб'], ['walnut', 0x5a3e2b, 'Орех'], ['white', 0xf1eee8, 'Бяло'], ['greige', 0xcdc3b6, 'Грейж'], ['olive', 0x7a8160, 'Маслинено'], ['black', 0x26241f, 'Черно']];
 const KITCHEN = [['greige', 0xcdc3b6, 'Грейж мат'], ['white', 0xf1eee8, 'Бяло мат'], ['oak', 0, 'Дъб'], ['olive', 0x7a8160, 'Маслинено']];
 const LINEN = [['white', 0xf4f1ea, 'Бяло'], ['linen', 0xd9cdb9, 'Лен'], ['olive', 0x7d8562, 'Маслинено'], ['stone', 0xb3aea6, 'Сиво']];
@@ -58,6 +58,11 @@ function rectLight(parent, w, h, x, y, z, intensity){
   const l = new THREE.RectAreaLight(0xffc98e, intensity, w, h);
   l.position.set(x, y, z); l.rotation.x = -Math.PI/2; l.userData.evening = true; l.userData.base = intensity; parent.add(l); return l;
 }
+/* box whose texture repeats every `s` metres (large stone panels) */
+function tbox(parent, w, h, d, mat, x, y, z, s = 1.4){
+  const m = new THREE.Mesh(scaleBoxUV(new THREE.BoxGeometry(w, h, d), w, h, d, s), mat);
+  m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
+}
 const finishMat = (key, list = FINISH) => key === 'oak' ? C.M.oakH : key === 'walnut' ? C.M.walnutH : C.paint(pick(list, key)[1], 0.55);
 const finishMatV = (key, list = FINISH) => key === 'oak' ? C.M.oakV : key === 'walnut' ? C.M.walnutV : C.paint(pick(list, key)[1], 0.55);
 
@@ -66,7 +71,149 @@ const VASE_ROUND = [[0,0],[0.05,0],[0.09,0.05],[0.095,0.10],[0.07,0.16],[0.035,0
 const BOWL = [[0,0],[0.04,0],[0.09,0.03],[0.11,0.06],[0.105,0.065],[0.08,0.035],[0,0.03]];
 
 /* ---------- pieces ---------- */
+const TV_INCH = { '55': 55, '65': 65, '75': 75, '85': 85 };
+/* screen with bezel (m): a 65" set is 1.45 × 0.835 */
+export function tvDims(p){ const s = (TV_INCH[p.tv] || 65)/65; return { s, w: 1.45*s, h: 0.835*s }; }
+
+/* Travertine TV wall, after the render: a black-framed glass vitrine with lit glass shelves, dark wood slats,
+   travertine from the lowboard to the ceiling with a floating travertine panel lit from behind, the TV on the panel,
+   the AC unit above it, and one long floating lowboard with four drawers under everything.
+   Laid out with the vitrine on the left; m = −1 mirrors it to the right. */
+function mediaLayout(p){
+  const W = p.W, tv = tvDims(p);
+  let vW = p.vitrine === 'none' ? 0 : 0.75, sW = p.slats ? 0.55 : 0;
+  const need = tv.w + 0.35;
+  if (W - vW - sW < need) sW = 0;
+  if (W - vW - sW < need) vW = 0;
+  const bx0 = -W/2 + vW + sW, bx1 = W/2, over = sW ? Math.min(0.22, sW - 0.1) : 0;
+  const fw = Math.min(bx1 - (bx0 - over), tv.w + 0.95), fx1 = bx1, fx0 = fx1 - fw;
+  const tvX = (fx0 + fx1)/2, tvY = Math.max(1.15, 0.72 + tv.h/2);
+  return { W, tv, vW, sW, m: p.vitrine === 'right' ? -1 : 1, bx0, bx1, fx0, fx1, tvX, tvY, fy0: tvY - tv.h/2 - 0.10, fy1: tvY + tv.h/2 + 0.13 };
+}
+const MEDIA_D = 0.42, MEDIA_TOP = 0.40;
+function mediaWall(p){
+  const g = new THREE.Group(), M = C.M, top = C.H, L = mediaLayout(p), { W, tv } = L, D = MEDIA_D, zb = -D/2, yt = MEDIA_TOP;
+  const X = x => L.m*x, mid = (a, b) => X((a + b)/2);
+  const glow = (w, h, x, y, z, down) => {
+    const q = new THREE.Mesh(new THREE.PlaneGeometry(w, h), M.ledGlow); q.position.set(x, y, z); if (down) q.rotation.z = Math.PI;
+    q.renderOrder = 4; q.castShadow = false; q.receiveShadow = false; g.add(q); return q;
+  };
+
+  /* lowboard: recessed black plinth, cream carcass and top, four handle-less drawers */
+  const yb = 0.06, fh = yt - yb - 0.026;
+  box(g, W - 0.04, yb, D - 0.07, M.felt, 0, yb/2, zb + (D - 0.07)/2, false);
+  box(g, W, yt - yb - 0.02, D - 0.02, M.lowboard, 0, yb + (yt - yb - 0.02)/2, zb + (D - 0.02)/2);
+  box(g, W, 0.02, D, M.lowboard, 0, yt - 0.01, 0);
+  const nd = 4, gap = 0.004, dw = (W - gap*(nd - 1))/nd;
+  for (let i = 0; i < nd; i++) box(g, dw, fh, 0.02, M.lowboard, -W/2 + dw/2 + i*(dw + gap), yb + 0.003 + fh/2, D/2 - 0.01, false);
+  for (let i = 1; i < nd; i++) box(g, gap, fh, 0.004, M.blackGloss, -W/2 + i*(dw + gap) - gap/2, yb + 0.003 + fh/2, D/2 - 0.021, false);
+  box(g, W, 0.003, 0.004, M.blackGloss, 0, yt - 0.0215, D/2 - 0.021, false);
+  blob(g, W + 0.2, 0.65, 0, 0.05, false, 0.55);
+
+  /* travertine behind, from the lowboard to the ceiling (the cove band hides the top) */
+  tbox(g, L.bx1 - L.bx0, top - yt, 0.02, M.travWall, mid(L.bx0, L.bx1), yt + (top - yt)/2, zb + 0.01);
+
+  /* slats on black felt */
+  if (L.sW){
+    const s0 = -W/2 + L.vW, n = Math.max(3, Math.round(L.sW/0.046)), pitch = L.sW/n;
+    box(g, L.sW, top - yt, 0.012, M.felt, mid(s0, s0 + L.sW), yt + (top - yt)/2, zb + 0.006, false);
+    for (let i = 0; i < n; i++) box(g, 0.027, top - yt, 0.034, M.slat, X(s0 + pitch*(i + 0.5)), yt + (top - yt)/2, zb + 0.012 + 0.017);
+  }
+
+  /* vitrine: black frame, two glass doors, glass sides, five lit glass shelves with glass, ceramics and books */
+  if (L.vW){
+    const v0 = -W/2, vw = L.vW, vc = mid(v0, v0 + vw), vd = 0.36, f = 0.028, h = top - yt, zf = zb + vd, yc = yt + h/2;
+    box(g, vw - 0.02, h, 0.012, M.vitrineBack, vc, yc, zb + 0.008, false);
+    for (const sx of [-1, 1]) for (const zz of [zb + f/2, zf - f/2]) box(g, f, h, f, M.black, vc + sx*(vw/2 - f/2), yc, zz);
+    for (const yy of [yt + f/2, top - f/2]){
+      box(g, vw, f, f, M.black, vc, yy, zf - f/2);
+      for (const sx of [-1, 1]) box(g, f, f, vd, M.black, vc + sx*(vw/2 - f/2), yy, zb + vd/2);
+    }
+    box(g, 0.022, h, f, M.black, vc, yc, zf - f/2);
+    const pane = (w, hh, x, z, ry) => { const q = new THREE.Mesh(new THREE.PlaneGeometry(w, hh), M.glass); q.position.set(x, yc, z); q.rotation.y = ry; q.renderOrder = 3; g.add(q); };
+    pane(vw - 2*f, h - 2*f, vc, zf - 0.004, 0);
+    for (const sx of [-1, 1]) pane(vd - 2*f, h - 2*f, vc + sx*(vw/2 - 0.004), zb + vd/2, Math.PI/2);
+    const ns = 5, lid = Math.min(top, 2.48), step = (lid - yt)/(ns + 1), sd = vd - f - 0.012;
+    const levels = [yt];
+    for (let i = 1; i <= ns; i++){
+      const y = yt + step*i; levels.push(y + 0.004);
+      box(g, vw - 2*f, 0.008, sd, M.glassShelf, vc, y, zb + 0.006 + sd/2, false);
+      led(g, vw - 2*f - 0.03, 0.005, 0.008, vc, y - 0.009, zf - f - 0.014);
+    }
+    led(g, vw - 2*f - 0.03, 0.005, 0.008, vc, lid - 0.012, zf - f - 0.014);
+    const R = rng(11), zo = zb + 0.17, xa = vc - 0.16*L.m, xb = vc + 0.15*L.m;
+    const things = [
+      y => { lathe(g, VASE_TALL, M.glassVase, xa, y, zo, 0.8); lathe(g, VASE_ROUND, M.glassVase, xb, y, zo, 0.75); },
+      y => { lathe(g, BOWL, M.ceramicDark, xb, y, zo, 0.9); box(g, 0.2, 0.03, 0.15, M.book1, xa, y + 0.015, zo); box(g, 0.18, 0.03, 0.14, M.book2, xa + 0.01, y + 0.045, zo); },
+      y => { lathe(g, VASE_ROUND, M.glassVase, xa, y, zo, 0.85); lathe(g, VASE_TALL, M.ceramicCream, xb, y, zo, 0.6); },
+      y => { lathe(g, VASE_TALL, M.glassVase, xb, y, zo, 0.75); lathe(g, BOWL, M.ceramicCream, xa, y, zo, 0.8); },
+      y => { box(g, 0.21, 0.03, 0.15, M.book1, xa, y + 0.015, zo); box(g, 0.2, 0.03, 0.15, M.book2, xa, y + 0.045, zo); lathe(g, VASE_ROUND, M.glassVase, xb, y, zo, 0.7); },
+      y => { lathe(g, VASE_TALL, M.glassVase, xa, y, zo, 0.7); lathe(g, VASE_ROUND, M.ceramicOlive, xb, y, zo, 0.6); },
+    ];
+    levels.forEach((y, i) => { if (y + 0.25 < lid) things[(i + Math.floor(R()*2)) % things.length](y); });
+    rectLight(g, vw - 0.1, vd - 0.1, vc, lid - 0.03, zb + vd/2, 3.5);
+  }
+
+  /* floating panel with the LED line behind its top and bottom edges */
+  const fw = L.fx1 - L.fx0, fc = mid(L.fx0, L.fx1), fz0 = zb + 0.055, ft = 0.03;
+  tbox(g, fw, L.fy1 - L.fy0, ft, M.travPanel, fc, (L.fy0 + L.fy1)/2, fz0 + ft/2);
+  box(g, fw - 0.3, L.fy1 - L.fy0 - 0.2, fz0 - zb - 0.02, M.felt, fc, (L.fy0 + L.fy1)/2, zb + 0.02 + (fz0 - zb - 0.02)/2, false);
+  led(g, fw - 0.05, 0.006, 0.012, fc, L.fy1 - 0.004, fz0 - 0.01);
+  led(g, fw - 0.05, 0.006, 0.012, fc, L.fy0 + 0.004, fz0 - 0.01);
+  glow(fw - 0.03, 0.34, fc, L.fy1 + 0.17, zb + 0.0215, false);
+  glow(fw - 0.03, Math.min(0.24, L.fy0 - yt - 0.01), fc, L.fy0 - Math.min(0.24, L.fy0 - yt - 0.01)/2, zb + 0.0215, true);
+  const up = rectLight(g, fw - 0.1, 0.05, fc, L.fy1 + 0.01, zb + 0.04, 6); up.rotation.x = Math.PI/2;
+  rectLight(g, fw - 0.1, 0.05, fc, L.fy0 - 0.01, zb + 0.04, 5);
+
+  /* the TV on the panel */
+  const tvg = new THREE.Group(); tvg.position.set(X(L.tvX), L.tvY, fz0 + ft + 0.022); g.add(tvg);
+  box(tvg, tv.w, tv.h, 0.03, M.blackGloss, 0, 0, 0);
+  const scr = new THREE.Mesh(new THREE.PlaneGeometry(tv.w - 0.02, tv.h - 0.02), M.screen); scr.position.z = 0.0155; tvg.add(scr);
+
+  /* AC unit above the panel, flush with its outer edge, under the lowered band of the ceiling */
+  if (p.ac){
+    const aw = 0.92, ah = 0.29, ad = 0.20, ay = Math.min(L.fy1 + 0.12 + ah/2, 2.47 - ah/2), ax = X(L.fx1 - aw/2 - 0.02), az = zb + 0.02 + ad/2;
+    rbox(g, aw, ah, ad, 0.03, M.acBody, ax, ay, az);
+    box(g, aw - 0.08, 0.022, 0.012, M.black, ax, ay - ah/2 + 0.04, az + ad/2 - 0.003, false);
+    box(g, 0.05, 0.016, 0.004, C.paint(0xd8d4cc, 0.4), ax + L.m*(aw/2 - 0.13), ay + ah/2 - 0.08, az + ad/2 + 0.001, false);
+  }
+
+  /* sound: a soundbar, or front speakers on the lowboard either side of the TV with the centre under it */
+  const lcr = p.audio === 'lcr';
+  if (p.audio === 'bar') box(g, Math.min(1.1, tv.w*0.6), 0.065, 0.10, M.black, X(L.tvX), yt + 0.0325, 0.04);
+  if (lcr){
+    for (const k of [-1, 1]) speakerBox(g, 0.18, 0.30, 0.22, X(L.tvX + k*(tv.w/2 + 0.08)), yt, -0.06, 'black');
+    speakerBox(g, 0.50, 0.15, 0.20, X(L.tvX), yt, -0.02, 'black');
+  }
+
+  /* decor: olive branches in a tall vase in front of the slats, a bronze bowl beside it */
+  if (p.decor){
+    const vx = X(L.sW ? L.bx0 - 0.04 : L.fx0 + 0.2), vz = 0.0;
+    lathe(g, VASE_TALL, M.ceramicCream, vx, yt, vz, 1.3);
+    const V = (x, y, z) => new THREE.Vector3(x, y, z), RR = rng(5), stems = [];
+    for (let i = 0; i < 6; i++){
+      const a = -0.9 + i*0.36 + (RR() - 0.5)*0.2, len = 0.42 + RR()*0.22, lean = 0.10 + RR()*0.16;
+      const tip = V(vx + Math.sin(a)*lean*L.m, yt + 0.40 + len, vz + Math.cos(a)*0.05);
+      const pts = [V(vx, yt + 0.33, vz), V(vx + Math.sin(a)*lean*0.35*L.m, yt + 0.40 + len*0.55, vz), tip];
+      const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 12, 0.0035, 5), M.trunk); tube.castShadow = true; g.add(tube);
+      stems.push(new THREE.CatmullRomCurve3(pts));
+    }
+    const NL = 150, leaves = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 6, 4), M.leaf, NL), dm = new THREE.Object3D();
+    const ca = new THREE.Color(0x66714c), cb = new THREE.Color(0x9aa482), cc = new THREE.Color();
+    for (let i = 0; i < NL; i++){
+      const c = stems[i % stems.length], t = 0.35 + 0.65*RR(), q = c.getPoint(t);
+      dm.position.set(q.x + (RR() - 0.5)*0.05, q.y + (RR() - 0.5)*0.03, q.z + (RR() - 0.5)*0.05);
+      dm.rotation.set(RR()*Math.PI, RR()*Math.PI, RR()*Math.PI); dm.scale.set(0.032, 0.004, 0.008); dm.updateMatrix();
+      leaves.setMatrixAt(i, dm.matrix); leaves.setColorAt(i, cc.copy(ca).lerp(cb, RR()));
+    }
+    leaves.castShadow = true; leaves.userData.keep = true; g.add(leaves);
+    if (!lcr) lathe(g, BOWL, M.bronze, X(L.sW ? L.bx0 + 0.24 : L.fx0 + 0.5), yt, 0.03, 1.45);
+  }
+  return g;
+}
+
 function tvUnit(p){
+  if (p.style === 'travertine') return mediaWall(p);
   const g = new THREE.Group(), M = C.M, H = C.H, W = p.W, zb = -0.19;
   if (p.style === 'lowboard'){
     const zb2 = -0.20;
@@ -74,7 +221,7 @@ function tvUnit(p){
     const n = Math.max(2, Math.round(W/0.6));
     for (let i = 1; i < n; i++) box(g, 0.004, 0.40, 0.004, M.blackGloss, -W/2 + i*W/n, 0.39, 0.201, false);
     led(g, W - 0.08, 0.006, 0.012, 0, 0.176, 0.10);
-    const s = p.tv === '55' ? 0.85 : p.tv === '75' ? 1.15 : 1;
+    const s = tvDims(p).s;
     const tv = new THREE.Group(); tv.position.set(0, 1.25, zb2 + 0.03); g.add(tv);
     box(tv, 1.45*s, 0.835*s, 0.03, M.blackGloss, 0, 0, 0);
     const scr = new THREE.Mesh(new THREE.PlaneGeometry(1.43*s, 0.815*s), M.screen); scr.position.z = 0.0155; tv.add(scr);
@@ -116,7 +263,7 @@ function tvUnit(p){
   for (const x of [-W/2 + colW + 0.012, W/2 - colW - 0.012]) led(g, 0.006, top - 0.02, 0.01, x, top/2, zb + 0.05);
   box(g, W, H - top, 0.38, M.oakH, 0, (top + H)/2, 0);
   led(g, sw - 0.04, 0.006, 0.01, 0, top - 0.004, zb + 0.09);
-  const s = p.tv === '55' ? 0.85 : p.tv === '75' ? 1.15 : 1;
+  const s = tvDims(p).s;
   const tv = new THREE.Group(); tv.position.set(0, 1.22, zb + 0.085); g.add(tv);
   box(tv, 1.45*s, 0.835*s, 0.03, M.blackGloss, 0, 0, 0);
   const scr = new THREE.Mesh(new THREE.PlaneGeometry(1.43*s, 0.815*s), M.screen); scr.position.z = 0.0155; tv.add(scr);
@@ -148,7 +295,27 @@ function tvUnit(p){
   return g;
 }
 
+/* the sofa's real size: the Mika is a fixed three-seater, the custom one follows its sliders */
+export function sofaDims(p){ return p.model === 'mika' ? { kind: 'straight', L: 2.07, D: 0.93, C: p.C } : { kind: p.kind, L: p.L, D: p.D, C: p.C }; }
+
+/* Mika Piena 207 (DOMKO): a puffy channel-tufted three-seater. Round arms of two fat channels each, a back of five channels
+   that run down to the base, two long seat cushions, two cushions in the corners, short black legs. 207 × 93 cm. */
+function sofaMika(p){
+  const g = new THREE.Group(), mat = C.fabric(pick(FABRICS, p.color)[1]), M = C.M;
+  const { L, D } = sofaDims(p), zb = -D/2, arm = 0.30, legH = 0.06, inner = L - 2*arm;
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) cyl(g, 0.022, 0.015, legH, M.black, sx*(L/2 - 0.17), legH/2, sz*(D/2 - 0.15), 16);
+  rbox(g, inner + 0.04, 0.22, D - 0.24, 0.07, mat, 0, legH + 0.11, zb + 0.23 + (D - 0.24)/2);
+  for (const sx of [-1, 1]) rbox(g, inner/2 + 0.012, 0.17, D - 0.30, 0.075, mat, sx*inner/4, legH + 0.30, zb + 0.28 + (D - 0.30)/2);
+  const nb = 5, cw = inner/nb;
+  for (let i = 0; i < nb; i++){ const b = rbox(g, cw + 0.03, 0.74, 0.30, 0.14, mat, -inner/2 + cw*(i + 0.5), legH + 0.37, zb + 0.15); b.rotation.x = -0.05; }
+  for (const sx of [-1, 1]) for (const k of [0, 1]) rbox(g, 0.17, 0.66 - k*0.02, D - 0.02 - k*0.03, 0.15, mat, sx*(L/2 - 0.085 - k*0.13), legH + 0.33 - k*0.01, k*0.015);
+  if (p.pillows) for (const sx of [-1, 1]){ const q = rbox(g, 0.46, 0.46, 0.13, 0.06, mat, sx*(inner/2 - 0.27), legH + 0.62, zb + 0.37); q.rotation.set(-0.30, sx*0.12, -sx*0.06); }
+  blob(g, L + 0.3, D + 0.28, 0, 0, false, 0.85);
+  return g;
+}
+
 function sofa(p){
+  if (p.model === 'mika') return sofaMika(p);
   const g = new THREE.Group(), mat = C.fabric(pick(FABRICS, p.color)[1]), M = C.M;
   const corner = p.kind !== 'straight';
   const L = p.L, D = p.D, Cd = corner ? Math.max(p.C, D + 0.4) : D;
@@ -190,6 +357,7 @@ function sofa(p){
   return g;
 }
 function sofaShapes(p){
+  if (p.model === 'mika'){ const d = sofaDims(p); return [[-d.L/2, -d.D/2, d.L/2, d.D/2]]; }
   if (p.kind === 'straight') return [[-p.L/2, -p.D/2, p.L/2, p.D/2]];
   const Cd = Math.max(p.C, p.D + 0.4), zb = -Cd/2, Wc = 0.95, s = p.kind === 'corner-l' ? -1 : 1;
   const cx0 = s > 0 ? p.L/2 - Wc : -p.L/2;
@@ -802,18 +970,32 @@ const CO = (key, label, options, def) => ({ key, label, type: 'color', options, 
 const B = (key, label, def, extra) => ({ key, label, type: 'bool', def, ...extra });
 
 export const TYPES = {
-  tvunit: { name: 'ТВ секция', cat: 'living', build: tvUnit,
-    params: [CH('style', 'Вид', [['stone', 'С камък до тавана'], ['lowboard', 'Нисък шкаф']], 'stone'), R('W', 'Ширина', 1.6, 3.4, 0.05, 2.8), CH('tv', 'Телевизор', [['55', '55"'], ['65', '65"'], ['75', '75"']], '65'),
-      CH('audio', 'Звук', [['bar', 'Саундбар'], ['lcr', 'Тонколони лява, център, дясна'], ['none', 'Без']], 'bar'), B('decor', 'Декорация', true, { if: p => p.style === 'stone' })],
-    sources: p => p.audio !== 'lcr' ? [] : p.style === 'lowboard'
-      ? [{ role: 'front', x: -(p.W/2 - 0.15), y: 0.84, z: 0.1 }, { role: 'front', x: p.W/2 - 0.15, y: 0.84, z: 0.1 }, { role: 'center', x: 0, y: 0.68, z: 0.15 }]
-      : [{ role: 'front', x: -(p.W/2 - 0.225), y: 0.86, z: 0 }, { role: 'front', x: p.W/2 - 0.225, y: 0.86, z: 0 }, { role: 'center', x: 0, y: 0.70, z: 0.07 }],
-    size: p => [p.W, p.style === 'lowboard' ? 0.40 : 0.38], note: 'по поръчка' },
-  sofa: { name: 'Диван', cat: 'living', build: sofa, shapes: sofaShapes,
-    params: [CH('kind', 'Вид', [['straight', 'Прав'], ['corner-l', 'Ъглов, шезлонгът вляво'], ['corner-r', 'Ъглов, шезлонгът вдясно']], 'straight'),
-      R('L', 'Дължина', 1.6, 3.4, 0.05, 2.6), R('C', 'Дълбочина при шезлонга', 1.4, 2.2, 0.05, 1.65, { if: p => p.kind !== 'straight' }),
-      R('D', 'Дълбочина', 0.85, 1.15, 0.05, 1.0), CO('color', 'Дамаска', FABRICS, 'cream'), B('pillows', 'Възглавници', true)],
-    size: p => [p.L, p.kind === 'straight' ? p.D : Math.max(p.C, p.D + 0.4)] },
+  tvunit: { name: 'ТВ секция', cat: 'living', build: tvUnit, label: p => p.style === 'travertine' ? 'ТВ стена с травертин' : 'ТВ секция',
+    params: [CH('style', 'Вид', [['travertine', 'Травертин, витрина и летви'], ['stone', 'С камък до тавана'], ['lowboard', 'Нисък шкаф']], 'stone'), R('W', 'Ширина', 1.6, 4.4, 0.05, 2.8),
+      CH('tv', 'Телевизор', [['55', '55"'], ['65', '65"'], ['75', '75"'], ['85', '85"']], '65'),
+      CH('vitrine', 'Витрината', [['left', 'Отляво'], ['right', 'Отдясно'], ['none', 'Без']], 'left', { if: p => p.style === 'travertine' }),
+      B('slats', 'Дървени летви до витрината', true, { if: p => p.style === 'travertine' }), B('ac', 'Климатик над телевизора', true, { if: p => p.style === 'travertine' }),
+      CH('audio', 'Звук', [['bar', 'Саундбар'], ['lcr', 'Тонколони лява, център, дясна'], ['none', 'Без']], 'bar'), B('decor', 'Декорация', true, { if: p => p.style !== 'lowboard' })],
+    sources: p => {
+      if (p.audio !== 'lcr') return [];
+      if (p.style === 'travertine'){
+        const L = mediaLayout(p), x = d => L.m*(L.tvX + d), side = L.tv.w/2 + 0.08;
+        return [{ role: 'front', x: x(-side), y: MEDIA_TOP + 0.24, z: 0.06 }, { role: 'front', x: x(side), y: MEDIA_TOP + 0.24, z: 0.06 }, { role: 'center', x: x(0), y: MEDIA_TOP + 0.08, z: 0.10 }];
+      }
+      return p.style === 'lowboard'
+        ? [{ role: 'front', x: -(p.W/2 - 0.15), y: 0.84, z: 0.1 }, { role: 'front', x: p.W/2 - 0.15, y: 0.84, z: 0.1 }, { role: 'center', x: 0, y: 0.68, z: 0.15 }]
+        : [{ role: 'front', x: -(p.W/2 - 0.225), y: 0.86, z: 0 }, { role: 'front', x: p.W/2 - 0.225, y: 0.86, z: 0 }, { role: 'center', x: 0, y: 0.70, z: 0.07 }];
+    },
+    size: p => [p.W, p.style === 'lowboard' ? 0.40 : p.style === 'travertine' ? MEDIA_D : 0.38], note: 'по поръчка',
+    variants: [{ name: 'ТВ стена с травертин', note: 'витрина, летви, климатик, 85"', p: { style: 'travertine', W: 4.0, tv: '85', vitrine: 'left', slats: true, ac: true, audio: 'none', decor: true } }] },
+  sofa: { name: 'Диван', cat: 'living', build: sofa, shapes: sofaShapes, label: p => p.model === 'mika' ? 'Диван Mika Piena 207' : 'Диван',
+    shop: p => p.model === 'mika' ? 'DOMKO' : null,
+    params: [CH('model', 'Модел', [['custom', 'По размер'], ['mika', 'Mika Piena 207, DOMKO']], 'custom'),
+      CH('kind', 'Вид', [['straight', 'Прав'], ['corner-l', 'Ъглов, шезлонгът вляво'], ['corner-r', 'Ъглов, шезлонгът вдясно']], 'straight', { if: p => p.model !== 'mika' }),
+      R('L', 'Дължина', 1.6, 3.4, 0.05, 2.6, { if: p => p.model !== 'mika' }), R('C', 'Дълбочина при шезлонга', 1.4, 2.2, 0.05, 1.65, { if: p => p.model !== 'mika' && p.kind !== 'straight' }),
+      R('D', 'Дълбочина', 0.85, 1.15, 0.05, 1.0, { if: p => p.model !== 'mika' }), CO('color', 'Дамаска', FABRICS, 'cream'), B('pillows', 'Възглавници', true)],
+    size: p => { const d = sofaDims(p); return [d.L, d.kind === 'straight' ? d.D : Math.max(d.C, d.D + 0.4)]; },
+    variants: [{ name: 'Диван Mika Piena 207', note: 'DOMKO · букле, антрацит', p: { model: 'mika', color: 'anthracite', kind: 'straight', L: 2.07, D: 0.93, pillows: true } }] },
   armchair: { name: 'Кресло', cat: 'living', build: armchair, params: [CO('color', 'Дамаска', FABRICS, 'sand')], size: () => [0.82, 0.84] },
   coffee: { name: 'Холна масичка', cat: 'living', build: coffeeTable,
     params: [R('D', 'Диаметър', 0.5, 1.1, 0.05, 0.8), CH('finish', 'Материал', [['oak', 'Дъб'], ['travertine', 'Травертин'], ['black', 'Черно']], 'travertine')],
@@ -893,7 +1075,9 @@ export function defaults(type){
   return p;
 }
 export function withDefaults(type, params){ return { ...defaults(type), ...(params || {}) }; }
-export function displayName(item){ return item.type === 'box' ? (item.p.name || TYPES.box.name) : TYPES[item.type].name; }
+export function displayName(item){ const T = TYPES[item.type]; return item.type === 'box' ? (item.p.name || T.name) : T.label ? T.label(item.p) : T.name; }
+/* shop or brand for the note field and the bill */
+export function shopOf(item){ const T = TYPES[item.type]; return typeof T.shop === 'function' ? T.shop(item.p) : T.shop || null; }
 
 /* footprint rectangles in local coordinates [x0, z0, x1, z1] */
 export function shapesOf(type, p){

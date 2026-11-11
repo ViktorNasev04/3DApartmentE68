@@ -290,4 +290,27 @@ function artCanvas(){
   return c;
 }
 
-export { makeNoise, fbm, rng, clamp, smooth, mk, stoneMaps, ledgeMaps, woodCanvas, boucleCanvas, rugCanvas, tvCanvas, skyCanvas, blobCanvas, plankFace, stoneFace, travertineFace, wallTileFace, artCanvas, loadPhotoFace };
+/* vein-cut travertine: long horizontal streaks, fine striations and pores (a panel ~1.4 m wide) */
+function travertineVeinFace(seed, tone, size = 512){
+  const c = mk(size,size), ctx = c.getContext('2d'), img = ctx.createImageData(size,size), d = img.data;
+  const n = makeNoise(seed), n2 = makeNoise(seed + 9), n3 = makeNoise(seed + 17);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++){
+    const yy = y + fbm(n2, x*0.004, y*0.004, 2)*14;
+    const band = fbm(n, x*0.0022, yy*0.05, 4), fine = n3(x*0.012, yy*0.55);
+    const line = fine > 0.62 ? -0.07 : fine < -0.7 ? 0.04 : 0;
+    const pore = n2(x*0.16, yy*1.1) > 0.64 ? 0.85 : 1;
+    const s = (1 + band*0.09 + line)*pore, grain = (Math.random() - 0.5)*4, k = (y*size + x)*4;
+    d[k] = tone[0]*s + grain; d[k+1] = tone[1]*s + grain; d[k+2] = tone[2]*s + grain; d[k+3] = 255;
+  }
+  ctx.putImageData(img,0,0);
+  return c;
+}
+/* soft glow of an LED line on a wall: bright at the bottom edge, fading up */
+function glowCanvas(){
+  const c = mk(8, 128), ctx = c.getContext('2d'), g = ctx.createLinearGradient(0, 128, 0, 0);
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.12, 'rgba(255,255,255,0.75)'); g.addColorStop(0.45, 'rgba(255,255,255,0.22)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 8, 128);
+  return c;
+}
+
+export { makeNoise, fbm, rng, clamp, smooth, mk, stoneMaps, ledgeMaps, woodCanvas, boucleCanvas, rugCanvas, tvCanvas, skyCanvas, blobCanvas, plankFace, stoneFace, travertineFace, travertineVeinFace, glowCanvas, wallTileFace, artCanvas, loadPhotoFace };

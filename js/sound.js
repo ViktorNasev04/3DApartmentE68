@@ -1,5 +1,5 @@
 /* Dolby Atmos layout: angles from the listening position to every speaker, and a 5.1.2 kit placed around the sofa. */
-import { TYPES, shapesOf } from './catalog.js';
+import { TYPES, shapesOf, sofaDims } from './catalog.js';
 import { WALL_RECTS, DOOR_SWINGS, roomAt } from './plan.js';
 
 const D2R = Math.PI/180, EAR = 1.05;
@@ -80,7 +80,7 @@ export function soundKit(layout, { problems, ceilingY, fieldAt }){
   const items = layout.items.filter(i => !SOUND_TYPES.has(i.type));
   const sofa = items.find(i => i.type === 'sofa');
   if (!sofa) return { error: 'Няма диван в модела. Сложи диван и пробвай пак.' };
-  const p = sofa.p, depth = p.kind === 'straight' ? p.D : Math.max(p.C, p.D + 0.4);
+  const p = sofaDims(sofa.p), depth = p.kind === 'straight' ? p.D : Math.max(p.C, p.D + 0.4);
   const s0 = p.kind === 'corner-l' ? -p.L/2 + 0.95 : -p.L/2 + 0.28;
   const s1 = p.kind === 'corner-r' ? p.L/2 - 0.95 : p.L/2 - 0.28;
   const lx0 = (s0 + s1)/2;
@@ -129,7 +129,7 @@ export function soundKit(layout, { problems, ceilingY, fieldAt }){
   for (const [x, z] of pair) add('ceilspk', x, z, 0, {});
 
   const sub = { color: 'black' }, cands = [];
-  if (tv) for (const k of [-1, 1]) cands.push([...toWorld(tv, k*(tv.p.W/2 + 0.24), (tv.p.style === 'lowboard' ? -0.20 : -0.19) + 0.21), tv.rot]);
+  if (tv) for (const k of [-1, 1]) cands.push([...toWorld(tv, k*(tv.p.W/2 + 0.24), -TYPES.tvunit.size(tv.p)[1]/2 + 0.21), tv.rot]);
   const front = depth - 0.32 - 0.25;
   cands.push([...at(front, -(latL + 0.07)), sofa.rot], [...at(front, latR + 0.07), sofa.rot], [...at(-0.9, -(latL + 0.1)), sofa.rot], [...at(-0.9, latR + 0.1), sofa.rot]);
   const ok = ([x, z, rot]) => roomAt(x, z) && !problems({ id: 'tmp', type: 'sub', x, z, rot, p: sub }).length && !inDoorSwing('sub', sub, x, z, rot);

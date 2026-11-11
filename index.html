@@ -22,11 +22,11 @@
   <header class="title">
     <div class="caps">Ап. Е63 · двустаен · 61.77 м² по документи</div>
     <h1>Апартамент</h1>
-    <div class="meta">
+    <div class="meta" id="meta">
       <b>51.05 м²</b><span>чиста площ</span>
       <span>дневна 23.48</span><span>спалня 12.79</span><span>лоджия 4.39</span><span>антре 3.72</span><span>баня 3.61</span><span>коридор 3.06</span>
     </div>
-    <p class="lede">Целият апартамент в мащаб по архитектурния план. Избери мебел и я премести, смени дивана с ъглов, пробвай друга маса. Всяка промяна се пази и се връща с „Назад“.</p>
+    <p class="lede">Целият апартамент в мащаб по архитектурния план. Избери мебел и я премести, смени дивана, пробвай друга маса. Стените също се местят, ако на място размерите излязат други. Всяка промяна се пази и се връща с „Назад“.</p>
   </header>
 
   <section class="planner" aria-label="3D планер">
@@ -59,7 +59,16 @@
           <button type="button" id="sel-del" aria-label="Махни" title="Махни"></button>
           <button type="button" id="sel-close" class="txt" aria-label="Готово">Готово</button>
         </div>
-        <button type="button" class="addbtn" id="add-open">+ Мебел</button>
+        <div class="wallbar" id="wallbar" hidden>
+          <span class="selname" id="wall-name"></span>
+          <button type="button" id="wall-minus"></button>
+          <button type="button" id="wall-plus"></button>
+          <button type="button" id="wall-close" class="txt">Готово</button>
+        </div>
+        <div class="stage-btns">
+          <button type="button" class="addbtn" id="add-open">+ Мебел</button>
+          <button type="button" class="addbtn" id="walls-open" aria-pressed="false">Стени</button>
+        </div>
         <svg class="compass" viewBox="0 0 44 44" aria-hidden="true">
           <g id="needle" transform="rotate(0 22 22)">
             <path d="M22 5 L27 22 L22 19 L17 22 Z" fill="currentColor"/>
@@ -69,16 +78,18 @@
         <div class="veil" id="veil">Нареждам апартамента…<small>3D модел в мащаб</small></div>
       </div>
       <div class="views" id="views" role="group" aria-label="Изгледи"></div>
-      <p class="hint">Влачи празно място, за да завъртиш. С два пръста приближаваш и местиш. Докосни мебел, за да я избереш, после я влачи.</p>
+      <p class="hint" id="hint">Влачи празно място, за да завъртиш. С два пръста приближаваш и местиш. Докосни мебел, за да я избереш, после я влачи.</p>
     </div>
 
     <aside class="dock" id="dock" aria-label="Мебели">
       <div class="dock-tabs" role="tablist">
         <button type="button" role="tab" id="tab-item" aria-selected="false" aria-controls="dock-item">Избрано</button>
         <button type="button" role="tab" id="tab-add" aria-selected="true" aria-controls="dock-add">Добави</button>
+        <button type="button" role="tab" id="tab-walls" aria-selected="false" aria-controls="dock-walls">Стени</button>
       </div>
       <div class="dock-body" id="dock-item" role="tabpanel" aria-labelledby="tab-item" hidden></div>
       <div class="dock-body" id="dock-add" role="tabpanel" aria-labelledby="tab-add"></div>
+      <div class="dock-body" id="dock-walls" role="tabpanel" aria-labelledby="tab-walls" hidden></div>
     </aside>
   </section>
 

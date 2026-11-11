@@ -1,7 +1,7 @@
 /* Page UI around the 3D stage: views, light and wall toggles, catalogue, settings of the selected piece,
    variants, floors and tile count, costs, material swatches. */
-import { CATEGORIES, TYPES, shapesOf, displayName } from './catalog.js';
-import { VIEWS, ROOMS, TOTAL_AREA } from './plan.js';
+import { CATEGORIES, TYPES, shapesOf, displayName, shopOf } from './catalog.js';
+import { VIEWS, ROOMS, TOTAL_AREA, LINES, LINE, MEASURES, PLAN_LINES, measureOf, lineRange, defaultLine } from './plan.js';
 import { FINISHES, BONDS } from './materials.js';
 import { PRESETS, presetLayout } from './layouts.js';
 
@@ -21,6 +21,10 @@ const el = (tag, attrs = {}, ...kids) => {
 const cm = v => Math.round(v * 100);
 const eur = v => v.toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 const ICON = {
+  west: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  east: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  north: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 15l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  south: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9l7 7 7-7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   rotl: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h6a6 6 0 1 1-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9.5 3.5 6 7l3.5 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   rotr: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 7h-6a6 6 0 1 0 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M14.5 3.5 18 7l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   undo: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7H15a5 5 0 0 1 0 10H8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M11.5 3.5 8 7l3.5 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
@@ -60,6 +64,7 @@ export function initUI(app){
   $('#sel-del').addEventListener('click', () => editor.selected && editor.remove(editor.selected));
   $('#sel-close').addEventListener('click', () => editor.select(null));
   $('#add-open').addEventListener('click', () => { setTab('add'); if (window.matchMedia('(max-width: 1099px)').matches) $('#dock').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  $('#walls-open').addEventListener('click', () => setTab(app.walls.active ? 'add' : 'walls'));
 
   /* ---------- views ---------- */
   const views = $('#views');
@@ -69,12 +74,21 @@ export function initUI(app){
   function syncViews(){ views.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === app.state.view)); }
 
   /* ---------- dock: tabs ---------- */
-  const tabs = { item: $('#tab-item'), add: $('#tab-add') }, bodies = { item: $('#dock-item'), add: $('#dock-add') };
+  const tabs = { item: $('#tab-item'), add: $('#tab-add'), walls: $('#tab-walls') }, bodies = { item: $('#dock-item'), add: $('#dock-add'), walls: $('#dock-walls') };
+  const hint = $('#hint'), hintText = hint.textContent;
   function setTab(t){
     for (const k of Object.keys(tabs)){ tabs[k].setAttribute('aria-selected', k === t); bodies[k].hidden = k !== t; }
+    const w = t === 'walls';
+    app.setWallMode(w);
+    $('#stage').classList.toggle('walls', w);
+    $('#walls-open').setAttribute('aria-pressed', String(w));
+    hint.textContent = w ? 'Докосни стена, за да я избереш, после я влачи. С мишката се влачи направо. Числата са размерите на стаите в сантиметри.' : hintText;
+    if (w) renderWalls();
+    syncHud();
   }
   tabs.item.addEventListener('click', () => setTab('item'));
   tabs.add.addEventListener('click', () => setTab('add'));
+  tabs.walls.addEventListener('click', () => setTab('walls'));
 
   /* catalogue */
   const add = bodies.add;
@@ -87,11 +101,16 @@ export function initUI(app){
       const p = Object.fromEntries(T.params.map(d => [d.key, d.def]));
       const [w, d] = T.size(p);
       const price = T.price ? T.price(p) : null;
-      list.append(el('button', { type: 'button', class: 'cat-item', onclick: () => {
-        editor.add(type);
+      const place = (params) => {
+        editor.add(type, params);
         setTab('item');
         if (window.matchMedia('(max-width: 1099px)').matches) $('#stage').scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } }, el('b', { text: T.name }), el('span', { class: 'num', text: T.round ? `Ø${cm(w)}` : `${cm(w)} × ${cm(d)} см` }), price != null ? el('span', { class: 'num price', text: eur(price) }) : null));
+      };
+      list.append(el('button', { type: 'button', class: 'cat-item', onclick: () => place() }, el('b', { text: T.name }), el('span', { class: 'num', text: T.round ? `Ø${cm(w)}` : `${cm(w)} × ${cm(d)} см` }), price != null ? el('span', { class: 'num price', text: eur(price) }) : null));
+      for (const v of T.variants || []){
+        const [vw, vd] = T.size({ ...p, ...v.p });
+        list.append(el('button', { type: 'button', class: 'cat-item', onclick: () => place(v.p) }, el('b', { text: v.name }), el('span', { class: 'num', text: `${cm(vw)} × ${cm(vd)} см` }), v.note ? el('span', { text: v.note }) : null));
+      }
     }
     add.append(el('h4', { text: c.name }), list);
   }
@@ -175,7 +194,7 @@ export function initUI(app){
       const def = T.price ? T.price(it.p) : null;
       const pr = el('input', { type: 'number', id: 'p-price', min: '0', step: '0.01', inputmode: 'decimal', placeholder: def != null ? String(def) : 'няма', value: it.price ?? '' });
       pr.addEventListener('change', () => { const v = pr.value.trim() === '' ? null : Math.max(0, +pr.value); editor.setMeta(it.id, { price: Number.isFinite(v) ? v : null }); editor.commit(); renderCosts(); });
-      const nt = el('input', { type: 'text', id: 'p-note', maxlength: '60', placeholder: T.shop ? T.shop : 'магазин, модел', value: it.note || '' });
+      const nt = el('input', { type: 'text', id: 'p-note', maxlength: '60', placeholder: shopOf(it) || 'магазин, модел', value: it.note || '' });
       nt.addEventListener('change', () => { editor.setMeta(it.id, { note: nt.value.trim() }); editor.commit(); renderCosts(); });
       form.append(el('div', { class: 'param two' },
         el('div', {}, el('label', { for: 'p-price', text: 'Цена, €' }), pr),
@@ -214,6 +233,116 @@ export function initUI(app){
     if (res.error){ toast(res.error); return; }
     toast(res.notes.length ? res.notes.join(' ') : 'Тонколоните са по ъглите на Dolby. Изберете ги, за да видите линиите.');
   }
+
+
+  /* ---------- walls ---------- */
+  const wallsBody = bodies.walls, WT = app.walls;
+  const ROOM_ORDER = ['living', 'bed', 'bath', 'corridor', 'antre', 'loggia'];
+  const off = id => LINE[id] - defaultLine(id);
+  const offText = (v) => v ? `${v > 0 ? '+' : '−'}${Math.abs(v)} см от плана` : 'както е на плана';
+  const dirsOf = id => LINES[id].axis === 'x' ? { minus: ['west', 'на запад'], plus: ['east', 'на изток'] } : { minus: ['north', 'на север'], plus: ['south', 'на юг'] };
+  /* smallest and largest size the measure can take with its line inside the allowed range */
+  function rangeOf(m){
+    const [lo, hi] = lineRange(m.edit);
+    const a = measureOf(m, { ...LINE, [m.edit]: lo }), b = measureOf(m, { ...LINE, [m.edit]: hi });
+    return [Math.round(Math.min(a, b)), Math.round(Math.max(a, b))];
+  }
+  /* the panel is built once; selection and numbers are updated in place so typing is never interrupted */
+  let wallCard = null;
+  function buildWalls(){
+    wallsBody.replaceChildren();
+    wallCard = el('div', { class: 'wall-sel', hidden: true });
+    wallsBody.append(el('p', { class: 'muted', text: 'Докосни стена в модела и я влачи, или впиши размера на стаята. Мебелите, които опират в стената с гърба си, се местят с нея. Всичко се връща с „Назад“.' }), wallCard);
+    for (const rid of ROOM_ORDER){
+      const r = ROOMS.find(q => q.id === rid);
+      const box = el('div', { class: 'wall-room' }, el('h4', {}, el('span', { text: r.name }), el('span', { class: 'num', 'data-area': rid })));
+      for (const m of MEASURES.filter(q => q.room === rid)){
+        const id = `wm-${m.id}`;
+        const inp = el('input', { type: 'number', id, 'data-m': m.id, step: '1', inputmode: 'numeric' });
+        inp.addEventListener('focus', () => { if (WT.selected !== m.edit) WT.select(m.edit); });
+        inp.addEventListener('change', () => {
+          const want = parseFloat(String(inp.value).replace(',', '.'));
+          if (Number.isFinite(want)){
+            WT.setMeasure(m, want);
+            const [lo, hi] = rangeOf(m), got = Math.round(measureOf(m));
+            if (got !== Math.round(want)) toast(`${m.name}: от ${lo} до ${hi} см. Иначе съседна стая става твърде малка.`);
+          }
+          inp.value = Math.round(measureOf(m));
+        });
+        box.append(el('div', { class: 'wall-dim', 'data-row': m.id },
+          el('label', { for: id, text: m.name }), el('div', { class: 'cm' }, inp, el('span', { text: 'см' })),
+          el('small', { 'data-plan': m.id, hidden: true })));
+      }
+      wallsBody.append(box);
+    }
+    wallsBody.append(el('div', { class: 'item-actions' },
+      el('button', { type: 'button', class: 'btn ghost', id: 'walls-reset', text: 'Всички стени по плана', onclick: () => { WT.resetAll(); toast('Стените са както са на плана.'); } })));
+  }
+  function renderWallCard(){
+    const sel = WT.selected;
+    wallCard.hidden = !sel;
+    wallCard.replaceChildren();
+    if (!sel) return;
+    const d = LINES[sel], dirs = dirsOf(sel);
+    const btns = [-10, -1, 1, 10].map(cm => {
+      const b = el('button', { type: 'button', 'aria-label': `${Math.abs(cm)} см ${cm < 0 ? dirs.minus[1] : dirs.plus[1]}`, onclick: () => WT.nudge(sel, cm) });
+      b.innerHTML = cm < 0 ? `${ICON[dirs.minus[0]]}<span>${-cm}</span>` : `<span>${cm}</span>${ICON[dirs.plus[0]]}`;
+      return b;
+    });
+    wallCard.append(
+      el('div', { class: 'item-head' }, el('h3', { text: d.name }), el('span', { class: 'num', id: 'wall-off' })),
+      d.note ? el('p', { class: 'muted', text: d.note }) : null,
+      el('div', { class: 'chips nudge', role: 'group', 'aria-label': 'Премести стената с' }, ...btns),
+      el('div', { class: 'item-actions' },
+        el('button', { type: 'button', class: 'btn ghost', id: 'wall-reset', text: 'Върни я по плана', onclick: () => WT.move(sel, defaultLine(sel)) }),
+        el('button', { type: 'button', class: 'btn ghost', text: 'Готово', onclick: () => WT.select(null) })));
+  }
+  function refreshWallNumbers(){
+    if (!wallCard) return;
+    const focus = document.activeElement, sel = WT.selected;
+    for (const m of MEASURES){
+      const inp = wallsBody.querySelector(`input[data-m="${m.id}"]`); if (!inp) continue;
+      const v = Math.round(measureOf(m)), plan = Math.round(measureOf(m, PLAN_LINES)), [lo, hi] = rangeOf(m);
+      if (inp !== focus) inp.value = v;
+      inp.min = lo; inp.max = hi;
+      wallsBody.querySelector(`[data-row="${m.id}"]`).classList.toggle('hot', WT.affects(m, sel));
+      const note = wallsBody.querySelector(`small[data-plan="${m.id}"]`); note.hidden = v === plan; note.textContent = `По плана ${plan} см`;
+    }
+    for (const r of ROOMS){ const a = wallsBody.querySelector(`[data-area="${r.id}"]`); if (a) a.textContent = `${r.area.toFixed(2)} м²`; }
+    if (sel){ const o = off(sel), t = $('#wall-off'), b = $('#wall-reset'); if (t) t.textContent = offText(o); if (b) b.disabled = !o; }
+    $('#walls-reset').disabled = !Object.keys(editor.walls).length;
+  }
+  function renderWalls(){
+    if (!wallCard) buildWalls();
+    if (wallsBody.dataset.sel !== String(WT.selected)){ wallsBody.dataset.sel = String(WT.selected); renderWallCard(); }
+    refreshWallNumbers();
+  }
+  /* wall bar inside the stage */
+  const wallbar = $('#wallbar'), wallName = $('#wall-name'), wMinus = $('#wall-minus'), wPlus = $('#wall-plus');
+  wMinus.addEventListener('click', (e) => WT.selected && WT.nudge(WT.selected, e.shiftKey ? -10 : -1));
+  wPlus.addEventListener('click', (e) => WT.selected && WT.nudge(WT.selected, e.shiftKey ? 10 : 1));
+  $('#wall-close').addEventListener('click', () => WT.select(null));
+  function wallbarSync(){
+    const id = WT.active ? WT.selected : null;
+    wallbar.hidden = !id;
+    if (!id) return;
+    const dirs = dirsOf(id), o = off(id);
+    wallName.textContent = `${LINES[id].name}${o ? ` · ${o > 0 ? '+' : '−'}${Math.abs(o)} см` : ''}`;
+    wMinus.innerHTML = ICON[dirs.minus[0]]; wPlus.innerHTML = ICON[dirs.plus[0]];
+    wMinus.setAttribute('aria-label', `1 см ${dirs.minus[1]}`); wPlus.setAttribute('aria-label', `1 см ${dirs.plus[1]}`);
+    wMinus.title = `1 см ${dirs.minus[1]}`; wPlus.title = `1 см ${dirs.plus[1]}`;
+    const [lo, hi] = lineRange(id); wMinus.disabled = LINE[id] <= lo; wPlus.disabled = LINE[id] >= hi;
+  }
+  WT.addEventListener('select', () => { wallbarSync(); renderWalls(); });
+  WT.addEventListener('active', () => wallbarSync());
+  /* header: net area and the rooms, following the walls */
+  function renderMeta(){
+    const sum = ROOMS.reduce((s, r) => s + r.area, 0), short = { living: 'дневна', bed: 'спалня', loggia: 'лоджия', antre: 'антре', bath: 'баня', corridor: 'коридор' };
+    const order = ['living', 'bed', 'loggia', 'antre', 'bath', 'corridor'];
+    $('#meta').replaceChildren(el('b', { text: `${sum.toFixed(2)} м²` }), el('span', { text: 'чиста площ' }),
+      ...order.map(id => el('span', { text: `${short[id]} ${ROOMS.find(r => r.id === id).area.toFixed(2)}` })));
+  }
+  function wallsChanged(){ renderMeta(); renderRooms(); renderCosts(); wallbarSync(); renderWalls(); }
 
   /* ---------- variants ---------- */
   const presetsEl = $('#presets');
@@ -329,7 +458,7 @@ export function initUI(app){
       const price = it.price != null ? it.price : (T.price ? T.price(it.p) : null);
       const name = displayName(it);
       const key = name + '|' + price + '|' + (it.note || '');
-      if (!groups.has(key)) groups.set(key, { name, price, note: it.note || (price != null && it.price == null ? [T.shop, T.priceNote].filter(Boolean).join(' · ') : ''), n: 0 });
+      if (!groups.has(key)) groups.set(key, { name, price, note: it.note || (price != null && it.price == null ? [shopOf(it), T.priceNote].filter(Boolean).join(' · ') : ''), n: 0 });
       groups.get(key).n++;
     }
     const priced = [...groups.values()].filter(g => g.price != null);
@@ -378,7 +507,7 @@ export function initUI(app){
     renderCosts();
   });
 
-  syncHud(); syncViews(); setTab('add'); renderItem(); renderVariants(); renderRooms(); renderCosts(); refreshSwatches();
+  syncHud(); syncViews(); setTab('add'); renderItem(); renderVariants(); renderRooms(); renderMeta(); renderCosts(); refreshSwatches();
 
-  return { renderVariants, syncViews, refreshSwatches, toast, renderCosts, renderCeiling };
+  return { renderVariants, syncViews, refreshSwatches, toast, renderCosts, renderCeiling, renderWalls: wallsChanged };
 }

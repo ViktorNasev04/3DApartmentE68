@@ -1,6 +1,6 @@
 /* Shared materials and the tiling shader used for floors and the bathroom walls */
 import * as THREE from 'three';
-import { stoneMaps, ledgeMaps, woodCanvas, boucleCanvas, rugCanvas, tvCanvas, skyCanvas, blobCanvas, plankFace, stoneFace, travertineFace, artCanvas } from './textures.js';
+import { stoneMaps, ledgeMaps, woodCanvas, boucleCanvas, rugCanvas, tvCanvas, skyCanvas, blobCanvas, plankFace, stoneFace, travertineFace, travertineVeinFace, glowCanvas, artCanvas } from './textures.js';
 
 /* Floor finishes the rooms can switch between. size = tile [long, short] in metres, off = row offset of the default bond. */
 export const FINISHES = {
@@ -100,6 +100,10 @@ export function createMaterials(renderer){
   const travC = travertineFace(41, [222, 210, 190], 256);
   const trav = new THREE.CanvasTexture(travC); trav.colorSpace = THREE.SRGBColorSpace; trav.wrapS = trav.wrapT = THREE.MirroredRepeatWrapping;
   const art = new THREE.CanvasTexture(artCanvas()); art.colorSpace = THREE.SRGBColorSpace;
+  const veinC = travertineVeinFace(53, [222, 208, 186]);
+  const vein = new THREE.CanvasTexture(veinC); vein.colorSpace = THREE.SRGBColorSpace; vein.wrapS = vein.wrapT = THREE.MirroredRepeatWrapping; vein.anisotropy = maxAniso;
+  const vein2 = vein.clone(); vein2.offset.set(0.37, 0.23); vein2.needsUpdate = true;
+  const glow = new THREE.CanvasTexture(glowCanvas());
   const oakVc = woodCanvas(false), oakHc = woodCanvas(true);
   const oakV = wrap(new THREE.CanvasTexture(oakVc)), oakH = wrap(new THREE.CanvasTexture(oakHc));
   const boucleC = boucleCanvas();
@@ -137,6 +141,7 @@ export function createMaterials(renderer){
     stoneSlab: new THREE.MeshStandardMaterial({ map:trav, roughness:0.5 }),
     walnutV: new THREE.MeshStandardMaterial({ map:oakV, color:0x6e4c34, roughness:0.5 }),
     walnutH: new THREE.MeshStandardMaterial({ map:oakH, color:0x6e4c34, roughness:0.5 }),
+    slat: new THREE.MeshStandardMaterial({ map:oakV, color:0x4b3527, roughness:0.55 }),
     art: new THREE.MeshStandardMaterial({ map:art, roughness:0.9 }),
     linenDark: new THREE.MeshStandardMaterial({ color:0x8c7a68, roughness:0.95, side:THREE.DoubleSide }),
     towel: new THREE.MeshStandardMaterial({ color:0x5f6747, roughness:1 }),
@@ -170,6 +175,16 @@ export function createMaterials(renderer){
     led: new THREE.MeshBasicMaterial({ color:0xffffff }),
     lampShade: new THREE.MeshStandardMaterial({ color:0xf3ece0, roughness:0.85, emissive:0xffcf98, emissiveIntensity:0, side:THREE.DoubleSide }),
     flush: new THREE.MeshStandardMaterial({ color:0xf6f2ea, roughness:0.6, emissive:0xffe2bd, emissiveIntensity:0 }),
+    travWall: new THREE.MeshStandardMaterial({ map:vein, roughness:0.55 }),
+    travPanel: new THREE.MeshStandardMaterial({ map:vein2, roughness:0.5 }),
+    lowboard: new THREE.MeshStandardMaterial({ color:0xebe5da, roughness:0.42 }),
+    vitrineBack: new THREE.MeshStandardMaterial({ color:0x6a5848, roughness:0.75 }),
+    felt: new THREE.MeshStandardMaterial({ color:0x1b1917, roughness:0.95 }),
+    glassShelf: new THREE.MeshPhysicalMaterial({ color:0xdfe9e4, roughness:0.05, transparent:true, opacity:0.42, depthWrite:false }),
+    glassVase: new THREE.MeshPhysicalMaterial({ color:0xeef2ec, roughness:0.04, transparent:true, opacity:0.34, depthWrite:false, side:THREE.DoubleSide }),
+    bronze: new THREE.MeshStandardMaterial({ color:0x8c6a42, roughness:0.32, metalness:0.85 }),
+    acBody: new THREE.MeshStandardMaterial({ color:0x131315, roughness:0.2, metalness:0.25 }),
+    ledGlow: new THREE.MeshBasicMaterial({ map:glow, color:0xffc98e, transparent:true, opacity:0.35, blending:THREE.AdditiveBlending, depthWrite:false, toneMapped:false }),
     skyEve: new THREE.MeshBasicMaterial({ map:skyEve, toneMapped:false }),
     skyDay: new THREE.MeshBasicMaterial({ map:skyDay, toneMapped:false }),
   };

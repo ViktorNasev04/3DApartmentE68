@@ -1,7 +1,7 @@
 /* Furniture editing: selection, dragging on the floor, rotation, snapping to walls, clearances, overlap warnings and undo. */
 import * as THREE from 'three';
 import { TYPES, buildItem, disposeItem, shapesOf, withDefaults } from './catalog.js';
-import { WALL_RECTS, roomAt, ROOMS } from './plan.js';
+import { WALL_RECTS, roomAt, ROOMS, LINES, resolveLines, overridesOf } from './plan.js';
 import { LAYOUT_REV } from './layouts.js';
 import { CEILING_DEFAULT } from './ceiling.js';
 
@@ -37,7 +37,14 @@ function overlapDepth(a, b){
   }
   return min;
 }
-const wallPolys = WALL_RECTS.map(w => ({ w, poly: [[w.x0, w.z0], [w.x1, w.z0], [w.x1, w.z1], [w.x0, w.z1]] }));
+/* wall outlines of the current plan, rebuilt when the walls move */
+let polysOf = null, polys = [];
+function wallPolys(){
+  if (polysOf !== WALL_RECTS){ polysOf = WALL_RECTS; polys = WALL_RECTS.map(w => ({ w, poly: [[w.x0, w.z0], [w.x1, w.z0], [w.x1, w.z1], [w.x0, w.z1]] })); }
+  return polys;
+}
+/* only known lines with finite values, as whole centimetres */
+const cleanWalls = (o) => overridesOf(resolveLines(Object.fromEntries(Object.entries(o || {}).filter(([k, v]) => LINES[k] && Number.isFinite(+v)).map(([k, v]) => [k, Math.round(+v)]))));
 
 export class Editor extends EventTarget {
   constructor({ scene, camera, controls, canvas, stage, labels, requestRender }){
@@ -48,6 +55,8 @@ export class Editor extends EventTarget {
     this.viz = new THREE.Group(); this.viz.name = 'selection'; scene.add(this.viz);
     this.selected = null;
     this.floors = {}; this.bond = 'third'; this.dir = 0; this.ceiling = { ...CEILING_DEFAULT };
+    this.walls = {};                    // moved walls: line id → cm, only where they differ from the plan
+    this.enabled = true;                // false while the walls are being edited
     this.past = []; this.future = []; this.current = null;
     this.ray = new THREE.Raycaster(); this.ndc = new THREE.Vector2();
     this.plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -66,7 +75,7 @@ export class Editor extends EventTarget {
   /* ---------- state ---------- */
   item(id){ return this.items.find(i => i.id === id) || null; }
   serialize(){
-    return { v: 1, rev: LAYOUT_REV, floors: { ...this.floors }, bond: this.bond, dir: this.dir, ceiling: { ...this.ceiling },
+    return { v: 1, rev: LAYOUT_REV, floors: { ...this.floors }, bond: this.bond, dir: this.dir, ceiling: { ...this.ceiling }, walls: { ...this.walls },
       items: this.items.map(i => { const o = { id: i.id, type: i.type, x: r2(i.x), z: r2(i.z), rot: Math.round(i.rot * 10) / 10, p: { ...i.p } }; if (i.price != null) o.price = i.price; if (i.note) o.note = i.note; return o; }) };
   }
   applyLayout(layout, { resetHistory = false, keepSelection = false } = {}){
@@ -86,6 +95,7 @@ export class Editor extends EventTarget {
     this.items = next;
     this.floors = { ...(layout.floors || {}) }; this.bond = layout.bond || 'third'; this.dir = layout.dir ? 1 : 0;
     this.ceiling = { ...CEILING_DEFAULT, ...(layout.ceiling || {}) };
+    if (layout.walls) this.walls = cleanWalls(layout.walls);   // a layout without walls keeps the current ones
     if (!keepSelection || !this.item(this.selected)) this.select(null); else this._updateViz();
     if (resetHistory){ this.past = []; this.future = []; this.current = JSON.stringify(this.serialize()); }
     this._emit('change', { commit: false, layout: true });
@@ -103,6 +113,15 @@ export class Editor extends EventTarget {
   redo(){ if (!this.future.length) return; this.past.push(this.current); this.current = this.future.pop(); this.applyLayout(JSON.parse(this.current), { keepSelection: true }); this._emit('change', { commit: true, history: true }); }
   setFloors(floors, bond, dir){ if (floors) this.floors = { ...this.floors, ...floors }; if (bond) this.bond = bond; if (dir != null) this.dir = dir; this._emit('change', { commit: false, floors: true }); this.commit(); }
   setCeiling(cfg, commit = true){ this.ceiling = { ...this.ceiling, ...cfg }; this._emit('change', { commit: false, ceiling: true }); if (commit) this.commit(); }
+  /* walls: full set of overrides; pieces listed in `moves` are shifted with them (furniture standing against a moved wall) */
+  setWalls(walls, { commit = true, moves = null } = {}){
+    this.walls = cleanWalls(walls);
+    if (moves) for (const { id, x, z } of moves){ const it = this.item(id); if (it) this.place(it, x, z); }
+    if (moves && moves.length) this._updateViz();
+    this._emit('change', { commit: false, walls: true });
+    if (commit) this.commit();
+    this.requestRender();
+  }
 
   _makeMesh(it){
     const g = buildItem(it);
@@ -122,7 +141,7 @@ export class Editor extends EventTarget {
   problems(it){
     if (!this.solid(it)) return [];
     const mine = this.polys(it), out = [];
-    for (const { w, poly } of wallPolys) for (const p of mine) if (overlapDepth(p, poly) > 0.012){ out.push({ kind: 'wall', id: w.id }); break; }
+    for (const { w, poly } of wallPolys()) for (const p of mine) if (overlapDepth(p, poly) > 0.012){ out.push({ kind: 'wall', id: w.id }); break; }
     for (const o of this.items){
       if (o === it || !this.solid(o) || this.related(it, o)) continue;
       const theirs = this.polys(o);
@@ -303,7 +322,7 @@ export class Editor extends EventTarget {
 
   _bind(){
     const down = (e) => {
-      if (e.target !== this.canvas || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      if (!this.enabled || e.target !== this.canvas || (e.pointerType === 'mouse' && e.button !== 0)) return;
       const id = this._hitItem(e);
       this.tap = { x: e.clientX, y: e.clientY, t: performance.now(), id, pid: e.pointerId, multi: !!this.tap && this.tap.pid !== e.pointerId };
       if (this.drag) return;
@@ -352,7 +371,7 @@ export class Editor extends EventTarget {
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.key.toLowerCase() === 'z'){ e.preventDefault(); e.shiftKey ? this.redo() : this.undo(); return; }
       if (mod && e.key.toLowerCase() === 'y'){ e.preventDefault(); this.redo(); return; }
-      if (!id) return;
+      if (!id || !this.enabled) return;
       const step = e.shiftKey ? 0.10 : 0.01;
       const keys = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
       if (keys[e.key]){ e.preventDefault(); this.nudge(id, ...keys[e.key]); clearTimeout(this._nt); this._nt = setTimeout(() => this.commit(), 400); return; }

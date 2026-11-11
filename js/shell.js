@@ -1,7 +1,8 @@
 /* The building shell: walls with their openings, floors, ceilings, slab, curtains, sky and ceiling lights.
+   Built from the current plan; the app builds a new shell whenever a wall moves.
    Walls are rebuilt into one merged mesh whenever the set of lowered (cut) walls changes. */
 import * as THREE from 'three';
-import { WALLS, ROOMS, H as Hcm, CEILING_LIGHTS, CEIL_ZONES, BOUNDS } from './plan.js';
+import { WALLS, ROOMS, H as Hcm, CEILING_LIGHTS, CEIL_ZONES, BOUNDS, LINE } from './plan.js';
 import { buildCove } from './ceiling.js';
 
 const H = Hcm / 100;
@@ -224,17 +225,19 @@ export function buildShell(ctx){
 
   /* ---------- bathroom wall tiles ---------- */
   {
-    const t = 0.004, top = H;
+    const t = 0.004, top = H, L = LINE;
+    const c = L.core/100, e = (L.bedW - 12)/100, n = L.north/100, s = L.bathS/100;
+    const w0 = (L.core + 7)/100, w1 = (L.core + 77)/100, d0 = (L.closet - 10)/100, d1 = (L.bedW - 35)/100;
     const panels = [
-      wallPanel('z', 0.00, 1.90, -2.02 + t, 0, top, 1),                    // west wall, faces east
-      wallPanel('z', 0.00, 1.90, -0.12 - t, 0, top, -1),                   // east wall, faces west
-      wallPanel('x', -2.02, -1.95, 0 + t, 0, top, 1),                      // north wall around the window
-      wallPanel('x', -1.95, -1.25, 0 + t, 0, 1.60, 1),
-      wallPanel('x', -1.95, -1.25, 0 + t, 2.50, top, 1),
-      wallPanel('x', -1.25, -0.12, 0 + t, 0, top, 1),
-      wallPanel('x', -2.02, -1.10, 1.90 - t, 0, top, -1),                  // south wall around the door
-      wallPanel('x', -1.10, -0.35, 1.90 - t, 2.10, top, -1),
-      wallPanel('x', -0.35, -0.12, 1.90 - t, 0, top, -1),
+      wallPanel('z', n, s, c + t, 0, top, 1),                              // west wall, faces east
+      wallPanel('z', n, s, e - t, 0, top, -1),                             // east wall, faces west
+      wallPanel('x', c, w0, n + t, 0, top, 1),                             // north wall around the window
+      wallPanel('x', w0, w1, n + t, 0, 1.60, 1),
+      wallPanel('x', w0, w1, n + t, 2.50, top, 1),
+      wallPanel('x', w1, e, n + t, 0, top, 1),
+      wallPanel('x', c, d0, s - t, 0, top, -1),                            // south wall around the door
+      wallPanel('x', d0, d1, s - t, 2.10, top, -1),
+      wallPanel('x', d1, e, s - t, 0, top, -1),
     ];
     for (const g of panels){
       const m = new THREE.Mesh(g, BATHWALL); m.receiveShadow = true; m.userData.bathwall = true; group.add(m);
@@ -251,7 +254,7 @@ export function buildShell(ctx){
   }
   const curtains = new THREE.Group(); group.add(curtains);
   {
-    const z0 = 3.40, z1 = 5.60, x = 5.48;
+    const z0 = (LINE.bedS + 17)/100, z1 = (LINE.stub - 5)/100, x = LINE.bay/100;
     const sheer = curtain(z1 - z0 + 0.2, 2.52, 11, 0.025, M.sheer);
     sheer.rotation.y = -Math.PI/2; sheer.position.set(x - 0.09, 1.32, (z0 + z1)/2); sheer.renderOrder = 3; curtains.add(sheer);
     for (const z of [z0 - 0.02, z1 + 0.02]){
@@ -261,7 +264,7 @@ export function buildShell(ctx){
     rail.position.set(x - 0.13, 2.60, (z0 + z1)/2); curtains.add(rail);
   }
   {                                          // bedroom, at the balcony door to the loggia
-    const z0 = 0.65, z1 = 2.45, x = 3.98;
+    const z0 = (LINE.north + 65)/100, z1 = (LINE.north + 245)/100, x = LINE.bedE/100;
     const sheer = curtain(z1 - z0 + 0.25, 2.52, 10, 0.022, M.sheer);
     sheer.rotation.y = -Math.PI/2; sheer.position.set(x - 0.08, 1.32, (z0 + z1)/2); sheer.renderOrder = 3; curtains.add(sheer);
     const c = curtain(0.40, 2.55, 3, 0.045, M.linenDark); c.castShadow = true; c.rotation.y = -Math.PI/2; c.position.set(x - 0.15, 1.31, z1 + 0.06); curtains.add(c);
@@ -270,10 +273,11 @@ export function buildShell(ctx){
   }
 
   /* ---------- outside: sky planes seen through the glazing ---------- */
-  const skyE = new THREE.Mesh(new THREE.PlaneGeometry(7.6, 4.8), M.skyEve);
-  skyE.rotation.y = -Math.PI/2; skyE.position.set(6.9, 1.55, 2.9); group.add(skyE);
+  const sz0 = (LINE.north - 90)/100, sz1 = (LINE.stub + 105)/100;
+  const skyE = new THREE.Mesh(new THREE.PlaneGeometry(sz1 - sz0, 4.8), M.skyEve);
+  skyE.rotation.y = -Math.PI/2; skyE.position.set(Math.max(LINE.bay + 142, LINE.logE + 117)/100, 1.55, (sz0 + sz1)/2); group.add(skyE);
   const skyN = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.4), M.skyEve);
-  skyN.position.set(-1.6, 2.05, -0.9); group.add(skyN);
+  skyN.position.set((LINE.core + 42)/100, 2.05, (LINE.north - 90)/100); group.add(skyN);
   const skies = [skyE, skyN];
 
   /* ---------- ceiling lights ---------- */
@@ -332,5 +336,8 @@ export function buildShell(ctx){
   const ceilingYAt = (x, z) => fieldNow && inZone(x, z) && !fieldNow(x, z) ? H - dropNow : H;
   const fieldFits = (x, z, m = 0) => !fieldNow || !inZone(x, z) || [[0, 0], [m, 0], [-m, 0], [0, m], [0, -m]].every(([dx, dz]) => fieldNow(x + dx, z + dz));
 
-  return { group, applyCut, floors, ceilGroup, roof, skies, lamps, curtains, setFloor, setCeiling, ceilingYAt, fieldFits };
+  /* geometry is per shell, materials are shared and stay */
+  function dispose(){ group.traverse(o => { if (o.geometry) o.geometry.dispose(); }); group.removeFromParent(); }
+
+  return { group, applyCut, floors, ceilGroup, roof, skies, lamps, curtains, setFloor, setCeiling, ceilingYAt, fieldFits, dispose, wallMeshes: [wallSides, wallCaps] };
 }
